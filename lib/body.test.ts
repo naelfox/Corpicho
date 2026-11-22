@@ -4,7 +4,7 @@ import { ValidationError } from '@/lib/validate'
 import { withTx } from '@/lib/db'
 import type { Profile } from '@/lib/profile'
 import {
-  REGIONS, addComposition, addMeasurement, addWeight, bmi, currentComposition, deleteRecord, latestByRegion,
+  REGIONS, addComposition, compositionHistory, addMeasurement, addWeight, bmi, currentComposition, deleteRecord, latestByRegion,
   navyBodyFat, regionHistory,
 } from '@/lib/body'
 
@@ -138,5 +138,18 @@ describe('withTx concorrente', () => {
       },
     }
     await expect(withTx(db as never, async () => { throw new Error('original') })).rejects.toThrow('original')
+  })
+
+  it('compositionHistory lista os registros com id, do mais recente, e apagar remove', async () => {
+    const db = await createTestDb()
+    await addComposition(db, { metric: 'body_fat_pct', value: '24,5', source: 'measured', method: 'Adipômetro', at: d('2026-11-01T12:00:00Z') })
+    await addComposition(db, { metric: 'muscle_kg', value: 35, source: 'measured', method: 'DEXA', at: d('2026-11-10T12:00:00Z') })
+    const h = await compositionHistory(db)
+    expect(h.map((x) => [x.metric, x.value, x.unit, x.method])).toEqual([
+      ['muscle_kg', 35, 'kg', 'DEXA'],
+      ['body_fat_pct', 24.5, '%', 'Adipômetro'],
+    ])
+    await deleteRecord(db, 'body_composition', h[0].id)
+    expect((await compositionHistory(db)).map((x) => x.metric)).toEqual(['body_fat_pct'])
   })
 })

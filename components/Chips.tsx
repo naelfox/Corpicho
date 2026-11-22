@@ -8,11 +8,14 @@ export function Segmented<T extends string | number>({
   options,
   value,
   onChange,
+  compact = false,
 }: {
   label: string
-  options: { id: T; label: string }[]
+  options: { id: T; label: string; aria?: string }[]
   value: T | null
   onChange: (v: T) => void
+  /** Texto menor e menos respiro lateral, para 4+ opções em tela estreita. */
+  compact?: boolean
 }) {
   return (
     <div role="radiogroup" aria-label={label} className="flex gap-1 rounded-xl bg-[var(--track)] p-1">
@@ -24,8 +27,9 @@ export function Segmented<T extends string | number>({
             type="button"
             role="radio"
             aria-checked={active}
+            aria-label={o.aria}
             onClick={() => onChange(o.id)}
-            className={`h-11 min-w-0 flex-1 rounded-[10px] px-2 text-[15px] transition-[background-color,color,box-shadow,transform] duration-150 ease-[var(--ease-out)] active:scale-[0.97] ${
+            className={`h-11 min-w-0 truncate rounded-[10px] ${compact ? 'flex-auto px-1.5 text-[14px]' : 'flex-1 px-2 text-[15px]'} transition-[background-color,color,box-shadow,transform] duration-150 ease-[var(--ease-out)] active:scale-[0.97] ${
               active
                 ? 'bg-[var(--card)] font-semibold text-[var(--ink)] shadow-[var(--shadow-card)]'
                 : 'text-[var(--muted)]'
@@ -93,5 +97,53 @@ export function Chip({ active, onClick, children }: { active: boolean; onClick: 
     >
       {children}
     </button>
+  )
+}
+
+/** Escolha única em chips que quebram linha (métricas, métodos…). */
+export function ChoiceChips<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+  scroll = false,
+}: {
+  label: string
+  options: { id: T; label: string }[]
+  value: T | null
+  onChange: (v: T) => void
+  /** Uma linha só, rolando na horizontal (sangra até a borda do cartão). */
+  scroll?: boolean
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={
+        scroll
+          ? '-mx-4 flex snap-x gap-2 overflow-x-auto overscroll-x-contain scroll-px-4 px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+          : 'flex flex-wrap gap-2'
+      }
+    >
+      {options.map((o) => {
+        const active = o.id === value
+        return (
+          <button
+            key={o.id}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            onClick={() => onChange(o.id)}
+            className={`h-11 shrink-0 snap-start rounded-full border px-4 text-[15px] whitespace-nowrap transition-[background-color,border-color,color,transform] duration-150 ease-[var(--ease-out)] active:scale-[0.96] ${
+              active
+                ? 'border-[var(--accent)] bg-[var(--accent-soft)] font-medium text-[var(--ink)]'
+                : 'border-[var(--line)] bg-[var(--card)] text-[var(--muted)]'
+            }`}
+          >
+            {o.label}
+          </button>
+        )
+      })}
+    </div>
   )
 }

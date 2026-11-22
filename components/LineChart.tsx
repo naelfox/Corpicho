@@ -2,7 +2,8 @@
 
 import { useId } from 'react'
 
-export type ChartPoint = { at: string; value: number }
+/** `estimated`: ponto calculado por fórmula (não medido) — desenhado vazado e tracejado. */
+export type ChartPoint = { at: string; value: number; estimated?: boolean }
 
 const fmt = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })
 const dayLabel = (at: string) =>
@@ -54,7 +55,8 @@ export function LineChart({
   const t0 = times[0]
   const tSpan = times[times.length - 1] - t0 || 1
   const x = (i: number) => (points.length === 1 ? W / 2 : padX + ((times[i] - t0) / tSpan) * (W - 2 * padX))
-  const y = (v: number) => padTop + (1 - (v - min) / span) * (H - padTop - padBottom)
+  // Todos iguais (ou 1 ponto): linha no meio da altura, não colada embaixo.
+  const y = (v: number) => padTop + (max === min ? 0.5 : 1 - (v - min) / span) * (H - padTop - padBottom)
   const path = points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p.value).toFixed(1)}`).join(' ')
   const iMin = values.indexOf(min)
   const iMax = values.indexOf(max)
@@ -97,7 +99,20 @@ export function LineChart({
         </>
       )}
       {points.map((p, i) => (
-        <circle key={i} cx={x(i)} cy={y(p.value)} r={points.length > 40 ? 1.5 : 3} fill="var(--card)" stroke="var(--accent)" strokeWidth={2} />
+        p.estimated ? (
+          <circle
+            key={i}
+            cx={x(i)}
+            cy={y(p.value)}
+            r={points.length > 40 ? 2.5 : 4}
+            fill="var(--card)"
+            stroke="var(--src-estimated)"
+            strokeWidth={1.75}
+            strokeDasharray="2 2"
+          />
+        ) : (
+          <circle key={i} cx={x(i)} cy={y(p.value)} r={points.length > 40 ? 1.5 : 3} fill="var(--card)" stroke="var(--accent)" strokeWidth={2} />
+        )
       ))}
       {points.length === 1 ? (
         label(0, points[0].value, true)

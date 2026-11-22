@@ -3,8 +3,11 @@
 import { getDb } from './localDb'
 import { withTx } from './db'
 import { getGoal, getProfile, saveGoal, saveProfile, type Goal, type Profile } from './profile'
-import { addWeight } from './body'
-import { getSeries } from './series'
+import {
+  addComposition, addMeasurement, addWeight, compositionHistory, currentComposition, deleteRecord, latestByRegion,
+  regionHistory, type CompMetric, type CompositionEntry, type Region,
+} from './body'
+import { evolutionSummary, getSeries, type Metric, type Period, type Series, type Unit } from './series'
 import { getDashboard, type Dashboard } from './dashboard'
 import { parseNum } from './validate'
 import { monthUsage } from './ai/client'
@@ -200,4 +203,72 @@ export async function discardPlatePhoto(path: string): Promise<void> {
 /** Lê uma foto guardada como data URL (para miniaturas). */
 export async function loadPhoto(path: string): Promise<string> {
   return (await photos()).loadPrivate(path)
+}
+
+// ── Corpo ────────────────────────────────────────────────────────────────────
+
+export type { CompMetric, CompositionEntry, Metric, Period, Region, Series, Unit }
+
+export type CompositionRecord = Awaited<ReturnType<typeof compositionHistory>>[number]
+
+export type BodyData = {
+  latest: Awaited<ReturnType<typeof latestByRegion>>
+  weight: { kg: number; at: string } | null
+  composition: CompositionEntry[]
+  records: CompositionRecord[]
+}
+
+/** Tudo da aba Corpo: última medida de cada região (com delta), último peso, composição atual e registros. */
+export async function loadBody(): Promise<BodyData> {
+  const db = await getDb()
+  const [latest, peso, profile, records] = await Promise.all([
+    latestByRegion(db), getSeries(db, 'peso', 'tudo'), getProfile(db), compositionHistory(db),
+  ])
+  const last = peso.points[peso.points.length - 1]
+  return {
+    latest,
+    weight: last ? { kg: last.value, at: last.at } : null,
+    composition: profile ? await currentComposition(db, profile) : [],
+    records,
+  }
+}
+
+/** Registra a medida de uma região (texto com vírgula ou ponto, 5–300 cm). Nunca edita: sempre um registro novo. */
+export async function saveMeasurement(region: Region, cmStr: string): Promise<void> {
+  const cm = parseNum(cmStr, { min: 5, max: 300, label: 'Medida' })
+  await write((db) => addMeasurement(db, region, cm))
+}
+
+export async function deleteMeasurement(id: string): Promise<void> {
+  await write((db) => deleteRecord(db, 'body_measurements', id))
+}
+
+/** Histórico da região, do mais recente ao mais antigo. */
+export async function loadRegionHistory(region: Region): Promise<{ id: string; cm: number; at: string }[]> {
+  return regionHistory(await getDb(), region)
+}
+
+/**
+ * Registra uma medição de composição (origem "medido", método obrigatório).
+ * Peso vai para a tabela de pesos: é dela que o app lê o peso (e o IMC).
+ */
+export async function saveComposition(input: { metric: Exclude<CompMetric, 'bmi'>; valueStr: string; method: string }): Promise<void> {
+  if (input.metric === 'weight_kg') {
+    await saveWeight(input.valueStr)
+    return
+  }
+  await write((db) => addComposition(db, { metric: input.metric, value: input.valueStr, source: 'measured', method: input.method }))
+}
+
+export async function deleteComposition(id: string): Promise<void> {
+  await write((db) => deleteRecord(db, 'body_composition', id))
+}
+
+export async function loadSeries(metric: Metric, period: Period): Promise<Series> {
+  return getSeries(await getDb(), metric, period)
+}
+
+/** Variação dos últimos 30 dias de cada métrica com 2+ registros. */
+export async function loadEvolutionSummary(): Promise<{ metric: Metric; delta: number; unit: Unit }[]> {
+  return evolutionSummary(await getDb())
 }

@@ -10,6 +10,7 @@ import { TZ, addDays, todayIn, type Day } from '@/lib/dates'
 import { MEAL_LABEL, mealTypeAt } from '@/lib/meals'
 import { sumMacros } from '@/lib/nutrition'
 import { ValidationError } from '@/lib/validate'
+import { ConfirmRow } from './ConfirmRow'
 import { kcalText } from './AddFoodSheet'
 import { MealTypePicker } from './MealTypePicker'
 import { Sheet, btnGhost, btnPrimary, fieldLabel } from './Sheet'
@@ -30,25 +31,6 @@ export function dayLabel(day: Day, today: Day = todayIn()): string {
 }
 
 const g1 = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 1 })
-
-/** Linha de confirmação dentro do app (substitui o confirm() do navegador). */
-function ConfirmRow({ text, onCancel, onConfirm }: { text: string; onCancel: () => void; onConfirm: () => void }) {
-  return (
-    <div role="alert" className="anim-enter-up flex items-center gap-2 rounded-xl bg-[var(--danger-soft)] py-1.5 pr-1.5 pl-3">
-      <span className="min-w-0 flex-1 text-[14px] font-medium">{text}</span>
-      <button type="button" onClick={onCancel} className="h-10 rounded-lg px-3 text-[14px] text-[var(--muted)] active:scale-[0.96]">
-        Cancelar
-      </button>
-      <button
-        type="button"
-        onClick={onConfirm}
-        className="h-10 rounded-lg bg-[var(--danger)] px-3 text-[14px] font-medium text-[var(--card)] active:scale-[0.96]"
-      >
-        Apagar
-      </button>
-    </div>
-  )
-}
 
 /** Miniatura da foto guardada da refeição (some se não der para ler). */
 function MealPhoto({ path }: { path: string }) {

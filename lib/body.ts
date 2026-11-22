@@ -169,3 +169,20 @@ export async function currentComposition(db: Db, profile: Profile): Promise<Comp
   }
   return out
 }
+
+/** Registros de composição informados pelo usuário (com id, para apagar), do mais recente ao mais antigo. */
+export async function compositionHistory(
+  db: Db,
+  limit = 50,
+): Promise<{ id: string; metric: CompMetric; value: number; unit: string; source: CompSource; method: string | null; at: string }[]> {
+  const rows = await db.query<{
+    id: string; metric: CompMetric; value: string | number; unit: string; source: CompSource; method: string | null; measured_at: string | Date
+  }>(
+    `select id, metric, value, unit, source, method, measured_at from body_composition
+     order by measured_at desc, created_at desc limit $1`,
+    [limit],
+  )
+  return rows.map((r) => ({
+    id: r.id, metric: r.metric, value: Number(r.value), unit: r.unit, source: r.source, method: r.method, at: iso(r.measured_at),
+  }))
+}
