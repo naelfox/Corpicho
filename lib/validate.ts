@@ -14,7 +14,7 @@ export function parseNum(input: string | number, opts: { min: number; max: numbe
   }
   const n = Number(raw)
   if (!Number.isFinite(n) || n < min || n > max) {
-    throw new ValidationError(`${label}: informe um valor entre ${min} e ${max}.`)
+    throw new ValidationError(`${label}: informe um valor entre ${min.toLocaleString('pt-BR')} e ${max.toLocaleString('pt-BR')}.`)
   }
   return n
 }

@@ -22,3 +22,9 @@ describe('round1', () => {
     expect(round1(2)).toBe(2)
   })
 })
+
+describe('parseNum (limites em pt-BR)', () => {
+  it('formata limites com vírgula', () => {
+    expect(() => parseNum('9', { min: 0.5, max: 5, label: 'X' })).toThrow('X: informe um valor entre 0,5 e 5.')
+  })
+})

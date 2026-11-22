@@ -8,6 +8,7 @@ import { Onboarding, type ProfileFormInitial } from '@/components/Onboarding'
 import { SettingsSheet } from '@/components/SettingsSheet'
 import { restoreTheme } from '@/components/ThemeToggle'
 import { Toaster, toast } from '@/components/Toast'
+import { Dashboard } from '@/components/Dashboard'
 import { Placeholder } from '@/components/tabs/Placeholder'
 
 /** Enquanto o banco local abre: marca do app + spinner. */
@@ -26,7 +27,7 @@ function Loading() {
 }
 
 const TEXT: Record<Tab, string> = {
-  inicio: 'Seu resumo do dia: peso, calorias, macros e treinos da semana.',
+  inicio: '',
   comer: 'Registre refeições à mão ou pela foto do prato.',
   corpo: 'Medidas, peso, composição corporal, evolução e fotos.',
   treino: 'Sua rotina semanal e o registro de cada treino.',
@@ -34,6 +35,7 @@ const TEXT: Record<Tab, string> = {
 }
 
 function TabBody({ tab }: { tab: Tab }) {
+  if (tab === 'inicio') return <Dashboard />
   const t = TABS.find((x) => x.id === tab)!
   return <Placeholder key={tab} icon={t.icon} title={t.label} text={TEXT[tab]} />
 }

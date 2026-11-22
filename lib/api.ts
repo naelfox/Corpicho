@@ -5,6 +5,8 @@ import { withTx } from './db'
 import { getGoal, getProfile, saveGoal, saveProfile, type Goal, type Profile } from './profile'
 import { addWeight } from './body'
 import { getSeries } from './series'
+import { getDashboard, type Dashboard } from './dashboard'
+import { parseNum } from './validate'
 import { monthUsage } from './ai/client'
 
 /**
@@ -71,6 +73,21 @@ export async function saveProfileAndGoal(input: { profile: Profile; goal: Goal; 
       if (input.weightKg !== undefined) await addWeight(db, input.weightKg)
     }),
   )
+}
+
+// ── Início ───────────────────────────────────────────────────────────────────
+
+export type { Dashboard }
+
+/** Tudo do Início (peso, hoje, macros, treinos, série, resumo). Lança ValidationError se não há meta. */
+export async function loadDashboard(): Promise<Dashboard> {
+  return getDashboard(await getDb())
+}
+
+/** Registra um peso (texto com vírgula ou ponto, 20–400 kg) e avisa as telas. */
+export async function saveWeight(kgStr: string): Promise<void> {
+  const kg = parseNum(kgStr, { min: 20, max: 400, label: 'Peso' })
+  await write((db) => addWeight(db, kg))
 }
 
 // ── IA ───────────────────────────────────────────────────────────────────────

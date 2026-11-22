@@ -96,12 +96,18 @@ function KeyField() {
     const k = draft.trim()
     if (!k) return
     setBusy('save')
-    await setOpenAiKey(k)
-    setSaved(k)
-    setDraft('')
-    setStatus(null)
-    setBusy(null)
-    toast('Chave salva.')
+    try {
+      await setOpenAiKey(k)
+      setSaved(k)
+      setDraft('')
+      setStatus(null)
+      toast('Chave salva.')
+    } catch (e) {
+      console.error(e)
+      toast('Não deu para salvar a chave.', 'erro')
+    } finally {
+      setBusy(null)
+    }
   }
 
   const test = async () => {
@@ -109,18 +115,30 @@ function KeyField() {
     if (!k) return
     setBusy('test')
     setStatus(null)
-    const ok = await testKey(k)
-    setStatus(ok ? { ok, text: 'A chave funcionou.' } : { ok, text: 'Não funcionou: confira a chave e a internet.' })
-    setBusy(null)
+    try {
+      const ok = await testKey(k)
+      setStatus(ok ? { ok, text: 'A chave funcionou.' } : { ok, text: 'Não funcionou: confira a chave e a internet.' })
+    } catch (e) {
+      console.error(e)
+      toast('Não deu para testar a chave.', 'erro')
+    } finally {
+      setBusy(null)
+    }
   }
 
   const remove = async () => {
     setBusy('delete')
-    await setOpenAiKey(null)
-    setSaved(null)
-    setStatus(null)
-    setBusy(null)
-    toast('Chave apagada.')
+    try {
+      await setOpenAiKey(null)
+      setSaved(null)
+      setStatus(null)
+      toast('Chave apagada.')
+    } catch (e) {
+      console.error(e)
+      toast('Não deu para apagar a chave.', 'erro')
+    } finally {
+      setBusy(null)
+    }
   }
 
   return (
