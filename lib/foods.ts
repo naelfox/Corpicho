@@ -82,9 +82,9 @@ export async function createFood(db: Db, input: Omit<Food, 'id'>): Promise<Food>
   if (name.length < 1 || name.length > 120) throw new ValidationError('Nome: use de 1 a 120 caracteres.')
   if (!['taco', 'usuario', 'ia'].includes(input.origin)) throw new ValidationError('Origem inválida.')
   const kcal = parseNum(input.kcal100, { min: 0, max: 900, label: 'Calorias' })
-  const protein = parseNum(input.protein100, { min: 0, max: 1000, label: 'Proteína' })
-  const carbs = parseNum(input.carbs100, { min: 0, max: 1000, label: 'Carboidratos' })
-  const fat = parseNum(input.fat100, { min: 0, max: 1000, label: 'Gordura' })
+  const protein = parseNum(input.protein100, { min: 0, max: 100, label: 'Proteína' })
+  const carbs = parseNum(input.carbs100, { min: 0, max: 100, label: 'Carboidratos' })
+  const fat = parseNum(input.fat100, { min: 0, max: 100, label: 'Gordura' })
   const [row] = await db.query<FoodRow>(
     `insert into foods (name, origin, search, kcal_100, protein_100, carbs_100, fat_100)
      values ($1, $2, $3, $4, $5, $6, $7)

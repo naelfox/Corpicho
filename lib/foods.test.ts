@@ -53,5 +53,8 @@ describe('foods', () => {
     await expect(createFood(db, { ...ok, name: 'a'.repeat(121) })).rejects.toBeInstanceOf(ValidationError)
     await expect(createFood(db, { ...ok, kcal100: 901 })).rejects.toBeInstanceOf(ValidationError)
     await expect(createFood(db, { ...ok, fat100: -1 })).rejects.toBeInstanceOf(ValidationError)
+    await expect(createFood(db, { ...ok, protein100: 101 })).rejects.toBeInstanceOf(ValidationError)
+    await expect(createFood(db, { ...ok, carbs100: 101 })).rejects.toBeInstanceOf(ValidationError)
+    await expect(createFood(db, { ...ok, fat100: 101 })).rejects.toBeInstanceOf(ValidationError)
   })
 })
