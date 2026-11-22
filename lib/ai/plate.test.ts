@@ -65,6 +65,18 @@ describe('analyzePlate', () => {
     expect(out[1].foodId).toBeUndefined()
     expect(out[1].per100).toEqual(p)
   })
+  it('usa os searchTerms mesmo com espaços sobrando no nome', async () => {
+    const db = await createTestDb()
+    await seedTaco(db)
+    const taco = (await searchFoods(db, 'arroz cozido', 1))[0]
+    const m = model(
+      JSON.stringify({
+        items: [{ name: '  Grão branco da casa ', searchTerms: 'arroz cozido', estimatedGrams: 120, per100: p, confidence: 'media' }],
+      }),
+    )
+    const out = await analyzePlate(db, 'data:image/jpeg;base64,AAAA', deps(m))
+    expect(out[0].foodId).toBe(taco.id)
+  })
   it('lista vazia devolve []', async () => {
     const db = await createTestDb()
     expect(await analyzePlate(db, 'data:image/jpeg;base64,AAAA', deps(model('{"items":[]}')))).toEqual([])

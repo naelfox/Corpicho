@@ -99,11 +99,15 @@ export async function analyzePlate(
       return { value: r.output.items, usage: r.usage }
     },
   })
+  // Mesma chave da deduplicação em normalizePlateItems (nome sem espaços nas pontas, minúsculo).
   const terms = new Map<string, string>()
-  raw.forEach((i) => terms.set(i.name, i.searchTerms))
+  for (const i of raw) {
+    const key = typeof i.name === 'string' ? i.name.trim().toLowerCase() : ''
+    if (key && !terms.has(key)) terms.set(key, i.searchTerms)
+  }
   const items: PlateItem[] = []
   for (const it of normalizePlateItems(raw)) {
-    const q = terms.get(it.name) ?? it.name
+    const q = terms.get(it.name.toLowerCase()) ?? it.name
     const [food] = q.trim() ? await searchFoods(db, q, 1) : []
     items.push(
       food
