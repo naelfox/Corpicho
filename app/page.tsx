@@ -13,6 +13,7 @@ import { FoodView } from '@/components/FoodView'
 import { BodyView } from '@/components/BodyView'
 import { TrainingView } from '@/components/TrainingView'
 import { CoachView } from '@/components/CoachView'
+import { installBackButton } from '@/components/back'
 
 /** Enquanto o banco local abre: marca do app + spinner. */
 function Loading() {
@@ -61,6 +62,19 @@ export default function Home() {
     void reload()
     return subscribe(reload)
   }, [reload])
+
+  // "Voltar" do Android: fecha folha aberta → volta no histórico (abas/formulário) → no Início, minimiza.
+  useEffect(() => {
+    let off: (() => void) | undefined
+    let live = true
+    installBackButton()
+      .then((fn) => (live ? (off = fn) : fn()))
+      .catch((e) => console.error(e))
+    return () => {
+      live = false
+      off?.()
+    }
+  }, [])
 
   // Uma vez por abertura, sem bloquear a tela: relatório da última semana fechada.
   useEffect(() => {

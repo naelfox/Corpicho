@@ -1,7 +1,8 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { Drawer } from 'vaul'
+import { pushBackHandler } from './back'
 
 export function Sheet({
   open,
@@ -14,6 +15,16 @@ export function Sheet({
   title: string
   children: ReactNode
 }) {
+  // "Voltar" do Android fecha a folha aberta (a mais recente primeiro) em vez de sair da tela.
+  const change = useRef(onOpenChange)
+  useEffect(() => {
+    change.current = onOpenChange
+  })
+  useEffect(() => {
+    if (!open) return
+    return pushBackHandler(() => change.current(false))
+  }, [open])
+
   return (
     <Drawer.Root open={open} onOpenChange={onOpenChange} repositionInputs={false}>
       <Drawer.Portal>
