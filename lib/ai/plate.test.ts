@@ -44,7 +44,8 @@ describe('analyzePlate', () => {
   it('casa com a TACO e usa os valores dela', async () => {
     const db = await createTestDb()
     await seedTaco(db)
-    const taco = (await searchFoods(db, 'arroz cozido', 1))[0]
+    const taco = (await searchFoods(db, 'arroz tipo 1 cozido', 1))[0]
+    expect(taco.name).toBe('Arroz, tipo 1, cozido')
     const m = model(
       JSON.stringify({
         items: [
@@ -68,7 +69,8 @@ describe('analyzePlate', () => {
   it('usa os searchTerms mesmo com espaços sobrando no nome', async () => {
     const db = await createTestDb()
     await seedTaco(db)
-    const taco = (await searchFoods(db, 'arroz cozido', 1))[0]
+    const taco = (await searchFoods(db, 'arroz tipo 1 cozido', 1))[0]
+    expect(taco.name).toBe('Arroz, tipo 1, cozido')
     const m = model(
       JSON.stringify({
         items: [{ name: '  Grão branco da casa ', searchTerms: 'arroz cozido', estimatedGrams: 120, per100: p, confidence: 'media' }],
@@ -76,6 +78,26 @@ describe('analyzePlate', () => {
     )
     const out = await analyzePlate(db, 'data:image/jpeg;base64,AAAA', deps(m))
     expect(out[0].foodId).toBe(taco.id)
+  })
+  it('não casa com prato composto (ovo → macarrão, leite → canjica, pão → fruta-pão)', async () => {
+    const db = await createTestDb()
+    await seedTaco(db)
+    const m = model(
+      JSON.stringify({
+        items: [
+          { name: 'Ovo cozido', searchTerms: 'ovo galinha cozido', estimatedGrams: 50, per100: p, confidence: 'alta' },
+          { name: 'Leite', searchTerms: 'leite', estimatedGrams: 200, per100: p, confidence: 'alta' },
+          { name: 'Pão', searchTerms: 'pao', estimatedGrams: 50, per100: p, confidence: 'media' },
+          { name: 'Pão francês', searchTerms: 'pao trigo frances', estimatedGrams: 50, per100: p, confidence: 'alta' },
+        ],
+      }),
+    )
+    const out = await analyzePlate(db, 'data:image/jpeg;base64,AAAA', deps(m))
+    expect(out[0].name).toMatch(/^Ovo, de galinha, inteiro, cozido/)
+    expect(out[1].name).not.toMatch(/Canjica/)
+    if (!out[1].foodId) expect(out[1]).toMatchObject({ name: 'Leite', per100: p })
+    expect(out[2].name).not.toMatch(/Fruta-pão/)
+    expect(out[3].name).toBe('Pão, trigo, francês')
   })
   it('lista vazia devolve []', async () => {
     const db = await createTestDb()

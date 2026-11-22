@@ -29,7 +29,8 @@ export function mealTypeAt(now: Date = new Date()): MealType {
 }
 
 export type NewItem =
-  | { foodId?: string; name: string; grams: number; per100: Per100 }
+  /** `origin` do alimento criado quando não há `foodId`: 'ia' para estimativa da foto (padrão 'usuario'). */
+  | { foodId?: string; name: string; grams: number; per100: Per100; origin?: 'usuario' | 'ia' }
   | { name: string; grams: number; macros: Macros }
 
 export type MealSource = 'manual' | 'ia_confirmada'
@@ -56,19 +57,35 @@ export type MealWithItems = {
   totals: Macros
 }
 
-type Checked = { foodId: string | null; per100: Per100 | null; name: string; grams: number; macros: Macros }
+type Checked = {
+  foodId: string | null
+  per100: Per100 | null
+  origin: 'usuario' | 'ia'
+  name: string
+  grams: number
+  macros: Macros
+}
 
 function check(item: NewItem): Checked {
   const name = item.name.trim()
   if (name.length < 1 || name.length > 120) throw new ValidationError('Nome: use de 1 a 120 caracteres.')
   const grams = parseNum(item.grams, { min: 0.1, max: 5000, label: 'Quantidade (g)' })
   if ('per100' in item) {
-    return { foodId: item.foodId ?? null, per100: item.per100, name, grams, macros: scaleFood(item.per100, grams) }
+    if (item.origin !== undefined && item.origin !== 'usuario' && item.origin !== 'ia') throw new ValidationError('Origem inválida.')
+    return {
+      foodId: item.foodId ?? null,
+      per100: item.per100,
+      origin: item.origin ?? 'usuario',
+      name,
+      grams,
+      macros: scaleFood(item.per100, grams),
+    }
   }
   const m = item.macros
   return {
     foodId: null,
     per100: null,
+    origin: 'usuario',
     name,
     grams,
     macros: {
@@ -97,7 +114,7 @@ export async function addMeal(
     for (const it of items) {
       let foodId = it.foodId
       if (!foodId && it.per100) {
-        foodId = (await createFood(db, { name: it.name, origin: 'usuario', ...it.per100 })).id
+        foodId = (await createFood(db, { name: it.name, origin: it.origin, ...it.per100 })).id
       }
       if (foodId) await touchFood(db, foodId)
       await db.query(

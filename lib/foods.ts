@@ -77,6 +77,65 @@ export async function searchFoods(db: Db, q: string, limit = 20): Promise<Food[]
   return rows.map(toFood)
 }
 
+/** Palavras de ligação que não contam na comparação de nomes. */
+const STOP = new Set(['de', 'da', 'do', 'das', 'dos', 'com', 'sem', 'e', 'a', 'o', 'em', 'ao', 'na', 'no', 'tipo'])
+
+/**
+ * Palavras que marcam uma variante (preparo, versão, origem). Se o nome traz uma delas e a busca não,
+ * o alimento é outro (ex.: "arroz cozido" não é "Arroz, integral, cozido"; "ovo" não é "Ovo, de codorna").
+ */
+const PREP = ['cru', 'crua', 'cozido', 'cozida', 'frito', 'frita', 'assado', 'assada', 'grelhado', 'grelhada', 'refogado', 'refogada']
+const VARIANT = new Set([
+  'integral', 'desnatado', 'semidesnatado', 'po', 'condensado', 'achocolatado', 'fermentado', 'diet', 'dietetico', 'light',
+  'cabra', 'codorna', 'coco', 'clara', 'gema', ...PREP,
+])
+/** Termos sem preparo: aceita o cozido (custo 1) ou o cru (custo 2) da TACO; outro preparo, não. */
+const DEFAULT_PREP: Record<string, number> = { cozido: 1, cozida: 1, cru: 2, crua: 2 }
+
+const words = (s: string) => normalize(s).split(' ').filter((w) => w && !STOP.has(w))
+/** Números e "10minutos" (tempo de cozimento da TACO) não diferenciam alimentos. */
+const neutral = (w: string) => /^\d/.test(w)
+
+/**
+ * Melhor alimento para os termos que a IA deu para um item da foto (não para a busca manual).
+ * O nome precisa começar pelo alimento principal (1ª palavra dos termos) e não trazer variante que os termos
+ * não pedem (sem preparo nos termos, aceita o cozido ou o cru); ganha quem casa mais palavras e sobra menos.
+ * Termos de uma palavra só casam com nome exato.
+ * Sem candidato bom: null (fica o nome e os valores da IA).
+ */
+export async function bestFoodMatch(db: Db, terms: string): Promise<Food | null> {
+  const t = words(terms)
+  if (t.length === 0) return null
+  const tset = new Set(t)
+  const noPrep = !t.some((w) => PREP.includes(w))
+  const rows = await db.query<FoodRow & { search: string }>(
+    `select ${COLS}, search from foods where search = $1 or search like $2`,
+    [t[0], `${t[0]} %`],
+  )
+  let best: { food: Food; score: number } | null = null
+  for (const r of rows) {
+    const n = words(r.search)
+    if (n[0] !== t[0]) continue
+    const nset = new Set(n)
+    const matched = t.filter((w) => nset.has(w)).length
+    const missing = t.length - matched
+    let prepCost = 0
+    const extra = n.filter((w) => {
+      if (tset.has(w) || neutral(w)) return false
+      if (noPrep && w in DEFAULT_PREP) {
+        prepCost += DEFAULT_PREP[w]
+        return false
+      }
+      return true
+    })
+    if (extra.some((w) => VARIANT.has(w))) continue
+    if (t.length === 1 ? extra.length > 0 || prepCost > 0 : matched < 2 || missing >= matched || extra.length > 3) continue
+    const score = 3 * matched - extra.length - missing - prepCost
+    if (!best || score > best.score || (score === best.score && r.name < best.food.name)) best = { food: toFood(r), score }
+  }
+  return best?.food ?? null
+}
+
 export async function createFood(db: Db, input: Omit<Food, 'id'>): Promise<Food> {
   const name = input.name.trim()
   if (name.length < 1 || name.length > 120) throw new ValidationError('Nome: use de 1 a 120 caracteres.')
@@ -85,16 +144,29 @@ export async function createFood(db: Db, input: Omit<Food, 'id'>): Promise<Food>
   const protein = parseNum(input.protein100, { min: 0, max: 100, label: 'Proteína' })
   const carbs = parseNum(input.carbs100, { min: 0, max: 100, label: 'Carboidratos' })
   const fat = parseNum(input.fat100, { min: 0, max: 100, label: 'Gordura' })
-  const [row] = await db.query<FoodRow>(
-    `insert into foods (name, origin, search, kcal_100, protein_100, carbs_100, fat_100)
-     values ($1, $2, $3, $4, $5, $6, $7)
-     on conflict (lower(name), origin) do update set
-       kcal_100 = excluded.kcal_100, protein_100 = excluded.protein_100,
-       carbs_100 = excluded.carbs_100, fat_100 = excluded.fat_100
-     returning ${COLS}`,
-    [name, input.origin, normalize(name), kcal, protein, carbs, fat],
-  )
-  return toFood(row)
+  const params = [name, input.origin, normalize(name), kcal, protein, carbs, fat]
+  const insert = `insert into foods (name, origin, search, kcal_100, protein_100, carbs_100, fat_100)
+     values ($1, $2, $3, $4, $5, $6, $7)`
+  if (input.origin === 'usuario') {
+    // O usuário pode corrigir os valores do próprio alimento.
+    const [row] = await db.query<FoodRow>(
+      `${insert} on conflict (lower(name), origin) do update set
+         kcal_100 = excluded.kcal_100, protein_100 = excluded.protein_100,
+         carbs_100 = excluded.carbs_100, fat_100 = excluded.fat_100
+       returning ${COLS}`,
+      params,
+    )
+    return toFood(row)
+  }
+  // Estimativa da IA (ou TACO): nunca sobrescreve; o índice único é por (nome, origem), então um alimento
+  // "usuario" com o mesmo nome nunca é tocado. Já existindo, devolve o que está salvo.
+  const [row] = await db.query<FoodRow>(`${insert} on conflict do nothing returning ${COLS}`, params)
+  if (row) return toFood(row)
+  const [existing] = await db.query<FoodRow>(`select ${COLS} from foods where lower(name) = lower($1) and origin = $2`, [
+    name,
+    input.origin,
+  ])
+  return toFood(existing)
 }
 
 export async function touchFood(db: Db, id: string): Promise<void> {

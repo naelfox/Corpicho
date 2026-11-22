@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ArrowLeftRight, Plus, X } from 'lucide-react'
 import { addMealApi, analyzePlateApi, type Food, type MealType, type PlateItem } from '@/lib/api'
 import { AI_ERROR_TEXT, AiError } from '@/lib/ai/client'
+import { pushBackHandler } from './back'
 import { mealTypeAt } from '@/lib/meals'
 import { scaleFood, sumMacros, type Per100 } from '@/lib/nutrition'
 import { ValidationError, parseNum } from '@/lib/validate'
@@ -55,6 +56,8 @@ export function PlateReview({ photo, onDone, onCancel }: { photo: PlatePhoto; on
 
   // Uma chamada por foto, mesmo com o efeito rodando duas vezes (StrictMode no dev): cada chamada custa.
   const request = useRef<Promise<PlateItem[]> | null>(null)
+  // Trava síncrona: dois toques antes do React re-renderizar com `busy` não salvam duas refeições.
+  const saving = useRef(false)
 
   useEffect(() => {
     let live = true
@@ -81,6 +84,13 @@ export function PlateReview({ photo, onDone, onCancel }: { photo: PlatePhoto; on
     }
   }, [photo.dataUrl])
 
+  // "Voltar" do Android = Descartar (apaga a foto guardada); a folha de trocar item, se aberta, fecha antes.
+  const cancel = useRef(onCancel)
+  useEffect(() => {
+    cancel.current = onCancel
+  })
+  useEffect(() => pushBackHandler(() => !saving.current && cancel.current()), [])
+
   const update = (key: number, patch: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)))
 
   const picked = (f: Food) => {
@@ -97,6 +107,8 @@ export function PlateReview({ photo, onDone, onCancel }: { photo: PlatePhoto; on
   const total = sumMacros(rows.map((r) => scaleFood(r.per100, loose(r.grams))))
 
   const confirm = async () => {
+    if (saving.current) return
+    saving.current = true
     setBusy(true)
     const bad = new Set<number>()
     try {
@@ -105,7 +117,8 @@ export function PlateReview({ photo, onDone, onCancel }: { photo: PlatePhoto; on
       for (const r of rows) {
         try {
           const grams = parseNum(r.grams, { min: 0.1, max: 5000, label: `Peso de ${r.name}` })
-          items.push({ ...(r.foodId ? { foodId: r.foodId } : {}), name: r.name, grams, per100: r.per100 })
+          // Sem alimento da tabela: o item é estimativa da IA (origem 'ia'), nunca sobrescreve um alimento seu.
+          items.push(r.foodId ? { foodId: r.foodId, name: r.name, grams, per100: r.per100 } : { name: r.name, grams, per100: r.per100, origin: 'ia' as const })
         } catch (e) {
           bad.add(r.key)
           if (e instanceof ValidationError) firstError ??= e
@@ -124,6 +137,7 @@ export function PlateReview({ photo, onDone, onCancel }: { photo: PlatePhoto; on
         toast('Não deu para salvar a refeição.', 'erro')
       }
     } finally {
+      saving.current = false
       setBusy(false)
     }
   }

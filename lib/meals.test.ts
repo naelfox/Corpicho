@@ -162,4 +162,37 @@ describe('refeições', () => {
     expect(t.map((x) => x.day)).toEqual(['2026-11-20', '2026-11-22'])
     expect(t[0].totals.kcal).toBe(128)
   })
+
+  it('item estimado pela IA vira alimento "ia" e nunca muda um alimento do usuário', async () => {
+    const db = await createTestDb()
+    const mine = await createFood(db, { name: 'Bolo da vó', origin: 'usuario', ...arroz })
+    const per100 = { kcal100: 400, protein100: 6, carbs100: 55, fat100: 18 }
+    await addMeal(db, { type: 'lanche', source: 'ia_confirmada', now, items: [{ name: 'bolo da vó', grams: 80, per100, origin: 'ia' }] })
+    const rows = await db.query<{ id: string; origin: string; kcal_100: string }>(
+      `select id, origin, kcal_100 from foods where lower(name) = 'bolo da vó' order by origin`,
+    )
+    expect(rows).toHaveLength(2)
+    expect(Number(rows.find((r) => r.origin === 'usuario')!.kcal_100)).toBe(128)
+    expect(Number(rows.find((r) => r.origin === 'ia')!.kcal_100)).toBe(400)
+    const usuario = rows.find((r) => r.origin === 'usuario')!
+    expect(usuario.id).toBe(mine.id)
+    const ia = rows.find((r) => r.origin === 'ia')!
+    const [m] = await getDayMeals(db, '2026-11-22')
+    expect(m.items[0].foodId).toBe(ia.id)
+    expect(m.items[0].kcal).toBe(320)
+    // Segunda vez com o mesmo nome: não sobrescreve o "ia" existente, só liga a ele.
+    await addMeal(db, { type: 'lanche', source: 'ia_confirmada', now, items: [{ name: 'Bolo da vó', grams: 50, per100: { ...per100, kcal100: 300 }, origin: 'ia' }] })
+    const again = await db.query<{ id: string; kcal_100: string }>(`select id, kcal_100 from foods where origin = 'ia'`)
+    expect(again).toHaveLength(1)
+    expect(Number(again[0].kcal_100)).toBe(400)
+    const meals = await getDayMeals(db, '2026-11-22')
+    expect(meals[1].items[0].foodId).toBe(ia.id)
+    expect(meals[1].items[0].kcal).toBe(150)
+  })
+
+  it('origem padrão do alimento novo é "usuario"', async () => {
+    const db = await createTestDb()
+    await addMeal(db, { type: 'almoco', source: 'ia_confirmada', now, items: [{ name: 'Cuscuz', grams: 100, per100: arroz }] })
+    expect(await db.query(`select origin from foods where name = 'Cuscuz'`)).toEqual([{ origin: 'usuario' }])
+  })
 })

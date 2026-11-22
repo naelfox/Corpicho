@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { createTestDb } from '@/test/db'
 import { ValidationError } from '@/lib/validate'
-import { createFood, searchFoods, seedTaco, touchFood } from '@/lib/foods'
+import { bestFoodMatch, createFood, searchFoods, seedTaco, touchFood } from '@/lib/foods'
 
 describe('foods', () => {
   it('seedTaco é idempotente', async () => {
@@ -56,5 +56,35 @@ describe('foods', () => {
     await expect(createFood(db, { ...ok, protein100: 101 })).rejects.toBeInstanceOf(ValidationError)
     await expect(createFood(db, { ...ok, carbs100: 101 })).rejects.toBeInstanceOf(ValidationError)
     await expect(createFood(db, { ...ok, fat100: 101 })).rejects.toBeInstanceOf(ValidationError)
+  })
+
+  it('bestFoodMatch escolhe o alimento certo da TACO (foto do prato)', async () => {
+    const db = await createTestDb()
+    await seedTaco(db)
+    const name = async (q: string) => (await bestFoodMatch(db, q))?.name ?? null
+    expect(await name('arroz branco cozido')).toBe('Arroz, tipo 1, cozido')
+    expect(await name('arroz cozido')).toBe('Arroz, tipo 1, cozido')
+    expect(await name('arroz tipo 1 cozido')).toBe('Arroz, tipo 1, cozido')
+    expect(await name('arroz integral cozido')).toBe('Arroz, integral, cozido')
+    expect(await name('ovo cozido')).toMatch(/^Ovo, de galinha, inteiro, cozido/)
+    expect(await name('ovo galinha cozido')).toMatch(/^Ovo, de galinha, inteiro, cozido/)
+    expect(await name('ovo frito')).toBe('Ovo, de galinha, inteiro, frito')
+    expect(await name('pao frances')).toBe('Pão, trigo, francês')
+    expect(await name('pao trigo frances')).toBe('Pão, trigo, francês')
+    expect(await name('feijao carioca cozido')).toBe('Feijão, carioca, cozido')
+    // A TACO não tem leite de vaca líquido: melhor ficar sem casar do que pegar canjica/leite em pó.
+    const leite = await name('leite')
+    expect(leite === null || leite.startsWith('Leite, de vaca, integral')).toBe(true)
+    expect(await name('pao')).not.toBe('Fruta-pão, crua')
+    expect(await name('zzzxxx')).toBeNull()
+    expect(await name('   ')).toBeNull()
+  })
+
+  it('bestFoodMatch ignora a ordem de usados recentemente', async () => {
+    const db = await createTestDb()
+    await seedTaco(db)
+    const [integral] = await searchFoods(db, 'arroz integral cozido', 1)
+    await touchFood(db, integral.id)
+    expect((await bestFoodMatch(db, 'arroz cozido'))?.name).toBe('Arroz, tipo 1, cozido')
   })
 })

@@ -1,7 +1,7 @@
 import { generateText, Output, type LanguageModel } from 'ai'
 import { z } from 'zod'
 import type { Db } from '@/lib/db'
-import { searchFoods } from '@/lib/foods'
+import { bestFoodMatch } from '@/lib/foods'
 import type { Per100 } from '@/lib/nutrition'
 import { round1 } from '@/lib/validate'
 import { runAi, type RunAiOptions } from './client'
@@ -26,7 +26,7 @@ const schema = z.object({ items: z.array(itemSchema) })
 const INSTRUCTIONS = `Você analisa a foto de um prato de comida para uma pessoa que registra o que come. Responda em português do Brasil.
 Identifique cada alimento distinto que aparece na foto. Para cada um informe:
 - name: nome do alimento como aparece (ex.: Arroz branco cozido);
-- searchTerms: 1 a 3 palavras genéricas para buscar numa tabela de alimentos brasileira (ex.: "arroz cozido", "feijao carioca cozido", "frango peito grelhado");
+- searchTerms: 2 a 4 palavras para buscar na tabela TACO, no estilo dela: comece pelo alimento principal e depois tipo e preparo (ex.: "arroz tipo 1 cozido", "feijao carioca cozido", "ovo galinha cozido", "pao trigo frances", "frango peito grelhado"). Se o item for um prato composto, comece pelo prato (ex.: "feijoada");
 - estimatedGrams: peso visual estimado em gramas da porção no prato;
 - per100: kcal, proteína, carboidrato e gordura (g) por 100 g (kcal100, protein100, carbs100, fat100);
 - confidence: "alta", "media" ou "baixa".
@@ -108,7 +108,8 @@ export async function analyzePlate(
   const items: PlateItem[] = []
   for (const it of normalizePlateItems(raw)) {
     const q = terms.get(it.name.toLowerCase()) ?? it.name
-    const [food] = q.trim() ? await searchFoods(db, q, 1) : []
+    // Busca por relevância (não a ordem de "usados recentemente" da busca manual). Sem bom candidato, fica a IA.
+    const food = await bestFoodMatch(db, q)
     items.push(
       food
         ? {
