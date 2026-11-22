@@ -2,6 +2,7 @@
 
 import { useState, type KeyboardEvent } from 'react'
 import { REGIONS, type Region } from '@/lib/body'
+import type { Muscle } from '@/lib/training'
 import { deltaTone, num1, signed } from './format'
 
 /**
@@ -15,9 +16,7 @@ import { deltaTone, num1, signed } from './format'
  * - `highlight` aceita regiões (`cintura`) e músculos (`peitoral`, `triceps`…, ver `MUSCLES`).
  */
 
-export type Muscle =
-  | 'peitoral' | 'ombros' | 'biceps' | 'triceps' | 'antebraco' | 'abdomen' | 'obliquos'
-  | 'costas' | 'lombar' | 'gluteos' | 'quadriceps' | 'posteriores' | 'panturrilhas' | 'trapezio'
+export type { Muscle }
 
 /** Músculos que a silhueta sabe destacar (ids usados pela IA do treino) e seus nomes em pt-BR. */
 export const MUSCLES: { id: Muscle; label: string; side: 'front' | 'back' | 'both' }[] = [

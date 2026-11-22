@@ -18,7 +18,12 @@ import {
   type MealType, type MealWithItems, type NewItem,
 } from './meals'
 import { sumMacros, type Macros } from './nutrition'
-import type { Day } from './dates'
+import { todayIn, weekdayOf, type Day } from './dates'
+import {
+  createPlan, deleteSet, discardSession, finishSession, getActivePlan, getOpenSession, logActivity, logSet, recentSessions,
+  startSession, type ExerciseKind, type OpenSession, type Plan, type PlanItem, type RecentSession, type SetInput,
+} from './training'
+import { generatePlan, type PlanDraft } from './ai/workout'
 
 /**
  * As ações das telas, rodando no próprio aparelho contra o banco local.
@@ -250,13 +255,13 @@ export async function loadRegionHistory(region: Region): Promise<{ id: string; c
 
 /**
  * Registra uma medição de composição (origem "medido", método obrigatório).
- * Peso vai para a tabela de pesos: é dela que o app lê o peso (e o IMC).
+ * Peso não entra aqui: vai pela folha de peso (saveWeight), que é de onde o app lê o peso (e o IMC).
  */
-export async function saveComposition(input: { metric: Exclude<CompMetric, 'bmi'>; valueStr: string; method: string }): Promise<void> {
-  if (input.metric === 'weight_kg') {
-    await saveWeight(input.valueStr)
-    return
-  }
+export async function saveComposition(input: {
+  metric: Exclude<CompMetric, 'bmi' | 'weight_kg'>
+  valueStr: string
+  method: string
+}): Promise<void> {
   await write((db) => addComposition(db, { metric: input.metric, value: input.valueStr, source: 'measured', method: input.method }))
 }
 
@@ -271,4 +276,61 @@ export async function loadSeries(metric: Metric, period: Period): Promise<Series
 /** Variação dos últimos 30 dias de cada métrica com 2+ registros. */
 export async function loadEvolutionSummary(): Promise<{ metric: Metric; delta: number; unit: Unit }[]> {
   return evolutionSummary(await getDb())
+}
+
+// ── Treino ───────────────────────────────────────────────────────────────────
+
+export type { ExerciseKind, OpenSession, Plan, PlanDraft, PlanItem, RecentSession }
+
+export type TrainingData = {
+  plan: Plan | null
+  /** Dia da semana de hoje (0 = domingo). */
+  weekday: number
+  open: OpenSession | null
+  recent: RecentSession[]
+}
+
+/** Tudo da aba Treino: plano ativo, dia de hoje, treino em andamento e os 5 últimos concluídos. */
+export async function loadTraining(): Promise<TrainingData> {
+  const db = await getDb()
+  const [plan, open, recent] = await Promise.all([getActivePlan(db), getOpenSession(db), recentSessions(db, 5)])
+  return { plan, weekday: weekdayOf(todayIn()), open, recent }
+}
+
+/** Pede um plano à IA a partir do perfil (lança AiError/ValidationError). Nada é salvo. */
+export async function generatePlanDraft(): Promise<PlanDraft> {
+  return generatePlan(await getDb())
+}
+
+/** Salva o plano (vira o ativo; o anterior fica no histórico). */
+export async function savePlan(draft: PlanDraft, origin: 'ia' | 'manual'): Promise<string> {
+  return write((db) => createPlan(db, { ...draft, origin }))
+}
+
+export async function startSessionApi(planId?: string | null): Promise<string> {
+  return write((db) => startSession(db, { planId }))
+}
+
+export async function logSetApi(sessionId: string, set: SetInput): Promise<string> {
+  return write((db) => logSet(db, sessionId, set))
+}
+
+export async function deleteSetApi(setId: string): Promise<void> {
+  await write((db) => deleteSet(db, setId))
+}
+
+/** Conclui o treino. `durationStr` em minutos (texto); RPE 1–10. */
+export async function finishSessionApi(sessionId: string, input: { durationStr: string; rpe: number; notes?: string }): Promise<void> {
+  const durationMin = Math.round(parseNum(input.durationStr, { min: 1, max: 600, label: 'Duração (min)' }))
+  await write((db) => finishSession(db, sessionId, { durationMin, rpe: input.rpe, notes: input.notes }))
+}
+
+export async function discardSessionApi(sessionId: string): Promise<void> {
+  await write((db) => discardSession(db, sessionId))
+}
+
+/** Atividade avulsa (ex.: Caminhada, 40 min). */
+export async function logActivityApi(input: { name: string; kind: ExerciseKind; durationStr: string; rpe: number }): Promise<void> {
+  const durationMin = Math.round(parseNum(input.durationStr, { min: 1, max: 600, label: 'Duração (min)' }))
+  await write((db) => logActivity(db, { exerciseName: input.name, kind: input.kind, durationMin, rpe: input.rpe }))
 }
