@@ -24,7 +24,7 @@ import {
   startSession, type ExerciseKind, type OpenSession, type Plan, type PlanItem, type RecentSession, type SetInput,
 } from './training'
 import { generatePlan, type PlanDraft } from './ai/workout'
-import { addBodyPhoto, deleteBodyPhoto, getBodyPhotos, photoSessions, type Angle, type PhotoSession } from './bodyPhotos'
+import { deleteBodyPhoto, getBodyPhotos, photoSessions, storeBodyPhoto, type Angle, type PhotoSession } from './bodyPhotos'
 import { describeChanges } from './ai/photoCompare'
 import { getMessages, listConversations, retryLastMessage, sendCoachMessage, type CoachMessage, type Conversation } from './ai/coach'
 
@@ -377,17 +377,9 @@ export async function takeBodyPhoto(angle: Angle, fromDataUrl?: string): Promise
   const { takePhoto, resizeForAi, savePrivate, deletePrivate } = await photos()
   const original = fromDataUrl ?? (await takePhoto())?.dataUrl
   if (!original) return null
-  const saved: string[] = []
-  try {
-    const path = await savePrivate(await resizeForAi(original, 1600, 0.85), 'body')
-    saved.push(path)
-    const thumbPath = await savePrivate(await resizeForAi(original, 320, 0.7), 'body')
-    saved.push(thumbPath)
-    return await write((db) => addBodyPhoto(db, { angle, path, thumbPath }))
-  } catch (e) {
-    await Promise.all(saved.map((p) => deletePrivate(p).catch(() => {})))
-    throw e
-  }
+  return write((db) =>
+    storeBodyPhoto(db, { angle, original }, { resize: resizeForAi, save: (d) => savePrivate(d, 'body'), remove: deletePrivate }),
+  )
 }
 
 /** Apaga a foto (registro, arquivo e miniatura). `fileRemoved: false` → o arquivo ficou no aparelho. */

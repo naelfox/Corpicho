@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createTestDb } from '@/test/db'
 import { ValidationError } from '@/lib/validate'
-import { ANGLES, addBodyPhoto, deleteBodyPhoto, getBodyPhotos, photoSessions } from '@/lib/bodyPhotos'
+import { ANGLES, addBodyPhoto, deleteBodyPhoto, getBodyPhotos, photoSessions, storeBodyPhoto, type StoreDeps } from '@/lib/bodyPhotos'
 
 const d = (s: string) => new Date(s)
 
@@ -84,5 +84,54 @@ describe('fotos do corpo', () => {
     })
     expect(r).toEqual({ fileRemoved: true })
     expect(await photoSessions(db)).toEqual([])
+  })
+
+  describe('storeBodyPhoto', () => {
+    const fakeDeps = (opts: { failThumb?: boolean; failSave?: boolean } = {}) => {
+      const files = new Set<string>()
+      let n = 0
+      const deps: StoreDeps = {
+        resize: async (d, max, q) => `${d}@${max}/${q}`,
+        save: async (d) => {
+          if (opts.failSave || (opts.failThumb && d.includes('@320'))) throw new Error('disco cheio')
+          const p = `body/${++n}${d.includes('@320') ? '-t' : ''}.jpg`
+          files.add(p)
+          return p
+        },
+        remove: async (p) => void files.delete(p),
+      }
+      return { deps, files }
+    }
+
+    it('guarda foto (1600/0.85) e miniatura (320/0.7)', async () => {
+      const db = await createTestDb()
+      const { deps, files } = fakeDeps()
+      await storeBodyPhoto(db, { angle: 'frente', original: 'img' }, deps)
+      expect([...files]).toEqual(['body/1.jpg', 'body/2-t.jpg'])
+      expect((await photoSessions(db))[0].photos.frente).toMatchObject({ path: 'body/1.jpg', thumbPath: 'body/2-t.jpg' })
+    })
+
+    it('falha da miniatura não perde a foto: thumbPath fica null', async () => {
+      const db = await createTestDb()
+      const { deps, files } = fakeDeps({ failThumb: true })
+      const id = await storeBodyPhoto(db, { angle: 'lado', original: 'img' }, deps)
+      expect(id).toBeTruthy()
+      expect([...files]).toEqual(['body/1.jpg'])
+      expect((await photoSessions(db))[0].photos.lado).toEqual({ id, path: 'body/1.jpg', thumbPath: null })
+    })
+
+    it('falha ao registrar no banco apaga os arquivos gravados', async () => {
+      const db = await createTestDb()
+      const { deps, files } = fakeDeps()
+      await expect(storeBodyPhoto(db, { angle: 'cima' as never, original: 'img' }, deps)).rejects.toThrow(ValidationError)
+      expect(files.size).toBe(0)
+    })
+
+    it('falha ao guardar a foto relança e não registra nada', async () => {
+      const db = await createTestDb()
+      const { deps } = fakeDeps({ failSave: true })
+      await expect(storeBodyPhoto(db, { angle: 'frente', original: 'img' }, deps)).rejects.toThrow('disco cheio')
+      expect(await photoSessions(db)).toEqual([])
+    })
   })
 })

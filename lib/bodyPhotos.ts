@@ -28,6 +28,37 @@ export async function addBodyPhoto(
   return r.id
 }
 
+export type StoreDeps = {
+  resize: (dataUrl: string, max: number, quality: number) => Promise<string>
+  save: (dataUrl: string) => Promise<string>
+  remove: (path: string) => Promise<void>
+}
+
+/**
+ * Guarda a foto (≤1600 px JPEG 0.85) e uma miniatura (≤320 px JPEG 0.7) e registra no banco.
+ * Falha da miniatura não perde a foto: segue com `thumbPath` null (a grade usa a foto inteira).
+ * Falha ao guardar a foto ou ao registrar apaga o que foi gravado e relança.
+ */
+export async function storeBodyPhoto(
+  db: Db,
+  input: { angle: Angle; original: string; at?: Date },
+  deps: StoreDeps,
+): Promise<string> {
+  const path = await deps.save(await deps.resize(input.original, 1600, 0.85))
+  let thumbPath: string | null = null
+  try {
+    thumbPath = await deps.save(await deps.resize(input.original, 320, 0.7))
+  } catch (e) {
+    console.error(e)
+  }
+  try {
+    return await addBodyPhoto(db, { angle: input.angle, path, thumbPath, at: input.at })
+  } catch (e) {
+    await Promise.all([path, thumbPath].map((p) => (p ? deps.remove(p).catch(() => {}) : undefined)))
+    throw e
+  }
+}
+
 type Row = { id: string; taken_at: string | Date; angle: Angle; path: string; thumb_path: string | null }
 
 /**
