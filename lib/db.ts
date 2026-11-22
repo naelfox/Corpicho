@@ -37,3 +37,16 @@ export async function initDb(pg: Pg): Promise<void> {
     [String(version)],
   )
 }
+
+/** Executa `fn` numa transação (o PGlite tem uma só conexão, então begin/commit via query é seguro). */
+export async function withTx<T>(db: Db, fn: () => Promise<T>): Promise<T> {
+  await db.query('begin')
+  try {
+    const r = await fn()
+    await db.query('commit')
+    return r
+  } catch (e) {
+    await db.query('rollback')
+    throw e
+  }
+}

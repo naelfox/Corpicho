@@ -1,4 +1,5 @@
 import type { Db } from './db'
+import { todayIn } from './dates'
 import type { Sex } from './nutrition'
 import { ValidationError, parseNum } from './validate'
 
@@ -68,9 +69,14 @@ export async function getProfile(db: Db): Promise<Profile | null> {
 }
 
 export async function saveProfile(db: Db, p: Profile): Promise<void> {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(p.birthDate) || Number.isNaN(Date.parse(p.birthDate))) {
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(p.birthDate) ||
+    Number.isNaN(Date.parse(p.birthDate)) ||
+    new Date(`${p.birthDate}T00:00:00Z`).toISOString().slice(0, 10) !== p.birthDate
+  ) {
     throw new ValidationError('Nascimento: informe uma data válida.')
   }
+  if (p.birthDate > todayIn()) throw new ValidationError('Nascimento: a data não pode estar no futuro.')
   if (p.sex !== 'm' && p.sex !== 'f') throw new ValidationError('Sexo: escolha uma opção válida.')
   if (!['baixo', 'medio', 'alto'].includes(p.fitness)) throw new ValidationError('Condicionamento: opção inválida.')
   if (!['nenhuma', 'iniciante', 'intermediario', 'avancado'].includes(p.experience)) {

@@ -33,6 +33,13 @@ describe('profile e meta', () => {
     await expect(saveProfile(db, { ...profile, sex: 'x' as 'm' })).rejects.toBeInstanceOf(ValidationError)
     expect(await getProfile(db)).toBeNull()
   })
+  it('saveProfile rejeita datas impossíveis e futuras', async () => {
+    const db = await createTestDb()
+    for (const birthDate of ['2023-02-31', '2023-13-01', '2999-01-01']) {
+      await expect(saveProfile(db, { ...profile, birthDate })).rejects.toBeInstanceOf(ValidationError)
+    }
+    expect(await getProfile(db)).toBeNull()
+  })
   it('saveGoal insere sempre e getGoal devolve a mais recente', async () => {
     const db = await createTestDb()
     expect(await getGoal(db)).toBeNull()
