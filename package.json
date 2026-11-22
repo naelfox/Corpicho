@@ -1,0 +1,45 @@
+{
+  "name": "corpicho",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "predev": "node scripts/copy-pglite.mjs",
+    "dev": "next dev",
+    "prebuild": "node scripts/copy-pglite.mjs",
+    "build": "next build",
+    "android": "npm run build && cap sync android",
+    "android:open": "cap open android",
+    "lint": "eslint",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "^4.0.118",
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/camera": "^8.0.0",
+    "@capacitor/core": "^8.6.2",
+    "@capacitor/filesystem": "^8.0.0",
+    "@capacitor/preferences": "^8.0.1",
+    "ai": "^7.0.173",
+    "lucide-react": "^1.73.0",
+    "motion": "^14.14.0",
+    "next": "16.4.6",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "vaul": "^1.1.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.2",
+    "@electric-sql/pglite": "^0.5.16",
+    "@tailwindcss/turbopack": "4.3.3",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.6",
+    "sharp": "^0.34.0",
+    "tailwindcss": "4.3.3",
+    "typescript": "^5",
+    "vitest": "^5.1.0"
+  }
+}
