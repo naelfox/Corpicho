@@ -1,1 +1,178 @@
 @import "tailwindcss";
+
+:root {
+  --bg: #f4f6f2;
+  --card: #ffffff;
+  --ink: #18201b;
+  --muted: #5f6b63;
+  --line: #dfe5dd;
+  --accent: #16a36a;
+  --accent-text: #0d7a4d; /* acento em texto/ícone sobre fundo claro (contraste AA) */
+  --accent-ink: #ffffff;
+  --accent-soft: rgb(22 163 106 / 0.13);
+  --danger: #d6453d;
+  --danger-soft: rgb(214 69 61 / 0.12);
+  --track: rgb(20 50 30 / 0.06);
+  --thumb: #ffffff;
+  --shadow-card: 0 0 0 1px rgb(20 50 30 / 0.06), 0 1px 2px rgb(20 50 30 / 0.05), 0 2px 6px -2px rgb(20 50 30 / 0.05);
+
+  /* Macros */
+  --protein: #e0567a;
+  --carbs: #e69a1c;
+  --fat: #3f7fe0;
+
+  /* Selos de origem da composição corporal */
+  --src-measured: #16a36a;
+  --src-calculated: #3f7fe0;
+  --src-estimated: #b7791f;
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  color-scheme: light;
+}
+
+/* Tema: sem data-theme segue o sistema; data-theme="light" | "dark" força (ThemeToggle). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111613;
+    --card: #1b211d;
+    --ink: #e9efe9;
+    --muted: #9aa69d;
+    --line: #2c352f;
+    --accent: #3fd08f;
+    --accent-text: #3fd08f;
+    --accent-ink: #062014;
+    --accent-soft: rgb(63 208 143 / 0.16);
+    --danger: #ff7b72;
+    --danger-soft: rgb(255 123 114 / 0.16);
+    --track: rgb(255 255 255 / 0.06);
+    --thumb: #333c36;
+    --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.3);
+
+    --protein: #ff86a6;
+    --carbs: #f7b955;
+    --fat: #7aa8ff;
+
+    --src-measured: #3fd08f;
+    --src-calculated: #7aa8ff;
+    --src-estimated: #e6b25c;
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #111613;
+  --card: #1b211d;
+  --ink: #e9efe9;
+  --muted: #9aa69d;
+  --line: #2c352f;
+  --accent: #3fd08f;
+  --accent-text: #3fd08f;
+  --accent-ink: #062014;
+  --accent-soft: rgb(63 208 143 / 0.16);
+  --danger: #ff7b72;
+  --danger-soft: rgb(255 123 114 / 0.16);
+  --track: rgb(255 255 255 / 0.06);
+  --thumb: #333c36;
+  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.06), 0 1px 2px rgb(0 0 0 / 0.3);
+
+  --protein: #ff86a6;
+  --carbs: #f7b955;
+  --fat: #7aa8ff;
+
+  --src-measured: #3fd08f;
+  --src-calculated: #7aa8ff;
+  --src-estimated: #e6b25c;
+
+  color-scheme: dark;
+}
+
+.only-dark {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .only-dark {
+    display: block;
+  }
+  :root:not([data-theme="light"]) .only-light {
+    display: none;
+  }
+}
+:root[data-theme="dark"] .only-dark {
+  display: block;
+}
+:root[data-theme="dark"] .only-light {
+  display: none;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+  transition: background-color 200ms ease;
+  overscroll-behavior: none;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+input,
+textarea,
+select {
+  font-size: max(16px, 1em);
+}
+
+button,
+a,
+[role="button"],
+[role="tab"],
+[role="checkbox"],
+[role="radio"] {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Troca de passo / aba: entra deslizando um pouco (reduced-motion desliga abaixo). */
+@keyframes enter-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes enter-side {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+}
+.anim-enter-up {
+  animation: enter-up 220ms var(--ease-out);
+}
+.anim-enter-side {
+  animation: enter-side 220ms var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
