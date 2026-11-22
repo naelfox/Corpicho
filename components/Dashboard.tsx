@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { ChevronRight, Dumbbell, FileText } from 'lucide-react'
+import { ChevronRight, Dumbbell, FileText, Plus } from 'lucide-react'
 import { loadDashboard, subscribe, type Dashboard as Data } from '@/lib/api'
 import { ValidationError } from '@/lib/validate'
 import type { Metric } from '@/lib/series'
@@ -76,7 +76,7 @@ export function Dashboard() {
       </section>
 
       <section className={card} aria-label="Peso">
-        <div className="flex items-baseline justify-between">
+        <div className="flex items-center justify-between">
           <div>
             <p className="text-[13px] text-[var(--muted)]">Peso</p>
             <p className="text-[26px] leading-tight font-semibold tabular-nums tracking-[-0.02em]">
@@ -84,7 +84,15 @@ export function Dashboard() {
               <span className="ml-1 text-[15px] font-normal text-[var(--muted)]">kg</span>
             </p>
           </div>
-          <p className="text-[13px] text-[var(--muted)]">meta {kg(weight.target)} kg</p>
+          {/* Peso rápido: um toque, já na primeira tela (a meta aparece na linha do progresso). */}
+          <button
+            type="button"
+            onClick={() => setWeightOpen(true)}
+            aria-label="Registrar peso"
+            className="-mr-1 flex h-10 items-center gap-1 rounded-full bg-[var(--accent-soft)] px-3.5 text-[15px] font-medium text-[var(--accent-text)] transition-transform duration-150 ease-[var(--ease-out)] active:scale-[0.96]"
+          >
+            <Plus aria-hidden size={17} strokeWidth={2.25} /> Registrar
+          </button>
         </div>
         <div
           role="progressbar"
@@ -105,9 +113,6 @@ export function Dashboard() {
         <div className="mt-3">
           <LineChart points={weightSeries} unit="kg" height={110} compact emptyText="Registre seu peso para ver o gráfico" />
         </div>
-        <button type="button" onClick={() => setWeightOpen(true)} className={`${btnPrimary} mt-3 w-full`}>
-          Registrar peso
-        </button>
       </section>
 
       <section className={`${card} flex items-center gap-3`} aria-label="Treinos da semana">

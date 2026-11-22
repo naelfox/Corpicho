@@ -9,6 +9,13 @@ App para **emagrecer com acompanhamento**, tudo no celular:
 - **Evolução** — gráficos de peso, medidas e consumo;
 - **Meu Coach IA** — conversa sobre os seus próprios dados (não substitui médico ou nutricionista).
 
+Atalhos para o dia a dia:
+
+- **Repetir de ontem** — no topo do Comer aparecem as refeições de ontem que ainda não têm hoje; um toque abre
+  a confirmação já com a mesma refeição (café, almoço...) escolhida.
+- **Peso rápido** — no Início, o botão **Registrar** no cartão do peso abre o teclado numérico direto.
+- **Treinar de novo** — depois de concluir o treino do dia, dá para registrar outra sessão no mesmo dia.
+
 App **Android** feito com Next.js (exportado como site estático) empacotado pelo **Capacitor**.
 Não tem servidor nem login: os dados ficam **só no celular**, num Postgres que roda dentro do app
 ([PGlite](https://pglite.dev), guardado no IndexedDB do WebView). Fotos do corpo e das refeições ficam

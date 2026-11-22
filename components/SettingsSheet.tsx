@@ -303,10 +303,10 @@ function LimitField() {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-end gap-2">
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <NumberField label="Limite de gasto por mês" value={limit} onChange={setLimit} unit="US$" decimals={2} invalid={!!error} />
         </div>
-        <button type="button" onClick={save} disabled={!dirty} className={btnPrimary}>
+        <button type="button" onClick={save} disabled={!dirty} className={`${btnPrimary} shrink-0`}>
           Salvar
         </button>
       </div>

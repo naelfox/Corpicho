@@ -355,14 +355,14 @@ export function BodySilhouette({
               onPointerLeave={press.end}
               onPointerCancel={press.end}
               style={{ top: `${(c.y / VH) * 100}%`, width: `${(COL / VW) * 100}%`, [c.col === 'L' ? 'left' : 'right']: 0 }}
-              className={`absolute flex h-11 -translate-y-1/2 flex-col justify-center rounded-xl border bg-[var(--card)] px-2 text-left leading-tight transition-[border-color,background-color,transform] duration-150 ease-[var(--ease-out)] active:scale-[0.97] disabled:active:scale-100 ${
+              className={`absolute flex h-11 -translate-y-1/2 flex-col justify-center rounded-xl border bg-[var(--card)] px-1.5 text-left leading-tight transition-[border-color,background-color,transform] duration-150 ease-[var(--ease-out)] active:scale-[0.97] disabled:active:scale-100 ${
                 on ? 'border-[var(--accent)] bg-[var(--accent-soft)]' : 'border-[var(--line)]'
               }`}
             >
-              <span aria-hidden className="flex items-baseline gap-1">
+              <span aria-hidden className="flex items-baseline gap-0.5">
                 <span className="min-w-0 flex-1 truncate text-[12px] text-[var(--muted)]">{SHORT[c.region]}</span>
                 {v?.delta ? (
-                  <span className={`shrink-0 text-[12px] font-medium tabular-nums ${deltaTone(v.delta)}`}>{signed(v.delta)}</span>
+                  <span className={`shrink-0 text-[11px] font-medium tabular-nums ${deltaTone(v.delta)}`}>{signed(v.delta)}</span>
                 ) : null}
               </span>
               <span aria-hidden className={`truncate text-[14px] tabular-nums ${v ? 'font-semibold' : 'text-[var(--muted)]'}`}>

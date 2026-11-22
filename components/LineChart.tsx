@@ -45,7 +45,8 @@ export function LineChart({
   const W = 320
   const padX = 14
   const padTop = 18
-  const padBottom = showAxis ? 22 : 18
+  // Com eixo: espaço para o rótulo do mínimo (abaixo do ponto) não encostar na data.
+  const padBottom = showAxis && !compact ? 36 : 18
   const H = height
   const values = points.map((p) => p.value)
   const min = Math.min(...values)

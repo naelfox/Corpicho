@@ -80,7 +80,7 @@ export function FoodSearch({ onPick, onNew }: { onPick: (f: Food) => void; onNew
           autoComplete="off"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar alimento (ex.: arroz cozido)"
+          placeholder="Buscar (ex.: arroz cozido)"
           className={`${textInput} pl-10`}
         />
       </div>

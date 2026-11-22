@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Camera, ChevronLeft, ChevronRight, Plus } from 'lucide-react'
+import { Camera, ChevronLeft, ChevronRight, Plus, RotateCcw } from 'lucide-react'
 import {
   discardPlatePhoto, hasNativeCamera, loadDay, subscribe, takeAndStorePlatePhoto, type MealWithItems,
 } from '@/lib/api'
@@ -10,6 +10,7 @@ import type { Macros } from '@/lib/nutrition'
 import { AddFoodSheet, kcalText } from './AddFoodSheet'
 import { Segmented } from './Chips'
 import { MacroBars } from './MacroBars'
+import { MEAL_SHORT } from './MealTypePicker'
 import { MealCard, MealHistory, RepeatSheet, card, dayLabel } from './MealHistory'
 import { PlateReview, type PlatePhoto } from './PlateReview'
 import { btnPrimary } from './Sheet'
@@ -31,9 +32,11 @@ export function FoodView() {
   const [view, setView] = useState<'dia' | 'historico'>('dia')
   const [day, setDay] = useState<Day>(() => todayIn())
   const [data, setData] = useState<DayData | null>(null)
+  const [yesterday, setYesterday] = useState<MealWithItems[]>([])
   const [addOpen, setAddOpen] = useState(false)
   const [addKey, setAddKey] = useState(0)
   const [repeat, setRepeat] = useState<MealWithItems | null>(null)
+  const [repeatKeepType, setRepeatKeepType] = useState(false)
   const [photo, setPhoto] = useState<PlatePhoto | null>(null)
   const [capturing, setCapturing] = useState(false)
   const [native, setNative] = useState(false)
@@ -44,7 +47,10 @@ export function FoodView() {
 
   const load = useCallback(async () => {
     try {
-      setData(await loadDay(day))
+      const isToday = day === todayIn()
+      const [d, y] = await Promise.all([loadDay(day), isToday ? loadDay(addDays(day, -1)) : null])
+      setData(d)
+      setYesterday(y?.meals ?? [])
     } catch (e) {
       console.error(e)
       toast('Não deu para carregar as refeições.', 'erro')
@@ -62,6 +68,11 @@ export function FoodView() {
       .then(setNative)
       .catch(() => setNative(false))
   }, [])
+
+  const openRepeat = (m: MealWithItems, keepType = false) => {
+    setRepeatKeepType(keepType)
+    setRepeat(m)
+  }
 
   const openAdd = () => {
     setAddKey((k) => k + 1)
@@ -120,6 +131,8 @@ export function FoodView() {
 
   // Já vem na ordem café → outras (lib/meals).
   const meals = data?.meals ?? []
+  // Atalho: refeições de ontem de um tipo que ainda não tem hoje (um toque → folha de repetir).
+  const repeatable = isToday && data ? yesterday.filter((y) => !meals.some((m) => m.type === y.type)) : []
 
   return (
     <div className="anim-enter-up flex flex-col gap-3 pt-3">
@@ -134,7 +147,7 @@ export function FoodView() {
       />
 
       {view === 'historico' ? (
-        <MealHistory onRepeat={setRepeat} />
+        <MealHistory onRepeat={openRepeat} />
       ) : (
         <>
           <nav aria-label="Dia" className="flex items-center justify-between">
@@ -165,6 +178,28 @@ export function FoodView() {
             </button>
           </nav>
 
+          {repeatable.length > 0 && (
+            <section aria-label="Repetir refeição de ontem" className="anim-enter-up">
+              <p className="mb-1.5 flex items-center gap-1.5 text-[13px] font-medium text-[var(--muted)]">
+                <RotateCcw aria-hidden size={14} /> Repetir de ontem
+              </p>
+              <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+                {repeatable.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => openRepeat(m, true)}
+                    aria-label={`Repetir ${MEAL_SHORT[m.type]} de ontem, ${kcalText(m.totals.kcal)} kcal`}
+                    className="flex h-11 shrink-0 items-center gap-1.5 rounded-full border border-[var(--line)] bg-[var(--card)] px-4 text-[15px] font-medium transition-transform duration-150 ease-[var(--ease-out)] active:scale-[0.96]"
+                  >
+                    {MEAL_SHORT[m.type]}
+                    <span className="font-normal tabular-nums text-[var(--muted)]">{kcalText(m.totals.kcal)} kcal</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
           {data && (
             <section className={card} aria-label="Totais do dia">
               <div className="mb-3 flex items-baseline justify-between">
@@ -192,7 +227,7 @@ export function FoodView() {
                 type="button"
                 onClick={() => void takePhoto()}
                 disabled={capturing}
-                className={`${btnPrimary} flex items-center justify-center gap-2`}
+                className={`${btnPrimary} flex items-center justify-center gap-2 px-3! whitespace-nowrap`}
               >
                 <Camera aria-hidden size={19} />
                 {capturing ? 'Abrindo…' : 'Foto do prato'}
@@ -200,7 +235,7 @@ export function FoodView() {
               <button
                 type="button"
                 onClick={openAdd}
-                className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[var(--card)] px-4 text-[15px] font-medium shadow-[var(--shadow-card)] transition-transform duration-150 ease-[var(--ease-out)] active:scale-[0.97]"
+                className="flex h-12 items-center justify-center gap-2 rounded-xl bg-[var(--card)] px-3 whitespace-nowrap text-[15px] font-medium shadow-[var(--shadow-card)] transition-transform duration-150 ease-[var(--ease-out)] active:scale-[0.97]"
               >
                 <Plus aria-hidden size={19} />
                 Adicionar
@@ -215,13 +250,13 @@ export function FoodView() {
             </p>
           )}
           {meals.map((m) => (
-            <MealCard key={m.id} meal={m} onRepeat={setRepeat} itemDelete />
+            <MealCard key={m.id} meal={m} onRepeat={openRepeat} itemDelete />
           ))}
         </>
       )}
 
       <AddFoodSheet key={addKey} open={addOpen} onClose={() => setAddOpen(false)} />
-      <RepeatSheet meal={repeat} onClose={() => setRepeat(null)} />
+      <RepeatSheet meal={repeat} keepType={repeatKeepType} onClose={() => setRepeat(null)} />
     </div>
   )
 }

@@ -153,16 +153,19 @@ export function MealCard({
   )
 }
 
-/** Escolhe a refeição de destino (padrão pela hora) e copia os itens para hoje. */
-export function RepeatSheet({ meal, onClose }: { meal: MealWithItems | null; onClose: () => void }) {
+/**
+ * Escolhe a refeição de destino e copia os itens para hoje.
+ * Padrão: pela hora; com `keepType` (atalho "repetir de ontem"), o mesmo tipo da refeição copiada.
+ */
+export function RepeatSheet({ meal, onClose, keepType = false }: { meal: MealWithItems | null; onClose: () => void; keepType?: boolean }) {
   const [shown, setShown] = useState<MealWithItems | null>(meal)
-  const [type, setType] = useState<MealType>(() => mealTypeAt())
+  const [type, setType] = useState<MealType>(() => (keepType && meal ? meal.type : mealTypeAt()))
   const [busy, setBusy] = useState(false)
 
   // Guarda a última refeição para o conteúdo não sumir durante a animação de fechar.
   if (meal && meal !== shown) {
     setShown(meal)
-    setType(mealTypeAt())
+    setType(keepType ? meal.type : mealTypeAt())
   }
 
   const repeat = async () => {
