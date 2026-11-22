@@ -40,7 +40,10 @@ export async function initDb(pg: Pg): Promise<void> {
 
 const queues = new WeakMap<Db, Promise<unknown>>()
 
-/** Executa `fn` numa transação. Chamadas sobrepostas no mesmo banco são serializadas (uma só conexão). */
+/**
+ * Executa `fn` numa transação. Chamadas sobrepostas no mesmo banco são serializadas (uma só conexão).
+ * Não aninhar: um withTx dentro de outro espera a fila do pai e trava (deadlock).
+ */
 export function withTx<T>(db: Db, fn: () => Promise<T>): Promise<T> {
   const run = async () => {
     await db.query('begin')

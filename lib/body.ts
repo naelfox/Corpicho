@@ -157,7 +157,7 @@ export async function currentComposition(db: Db, profile: Profile): Promise<Comp
       hipCm: m.quadril ? Number(m.quadril.cm) : undefined,
     })
     const measuredIdx = out.findIndex((x) => x.metric === 'body_fat_pct' && x.source === 'measured')
-    const measuredNewer = measuredIdx >= 0 && new Date(out[measuredIdx].at).getTime() > newest
+    const measuredNewer = measuredIdx >= 0 && new Date(out[measuredIdx].at).getTime() >= newest
     if (est !== null && !measuredNewer) {
       if (measuredIdx >= 0) out.splice(measuredIdx, 1)
       else {

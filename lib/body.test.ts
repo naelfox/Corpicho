@@ -97,6 +97,16 @@ describe('corpo', () => {
     expect(fat[0].source).toBe('estimated')
   })
 
+  it('gordura medida com o mesmo instante da medição vence a estimada', async () => {
+    const db = await createTestDb()
+    await addMeasurement(db, 'pescoco', 40, d('2026-11-20T12:00:00Z'))
+    await addMeasurement(db, 'cintura', 95, d('2026-11-20T12:00:00Z'))
+    await addComposition(db, { metric: 'body_fat_pct', value: 25, source: 'measured', method: 'bioimpedância', at: d('2026-11-20T12:00:00Z') })
+    const fat = (await currentComposition(db, profile)).filter((x) => x.metric === 'body_fat_pct')
+    expect(fat).toHaveLength(1)
+    expect(fat[0]).toMatchObject({ value: 25, source: 'measured' })
+  })
+
   it('sem peso não há IMC', async () => {
     const db = await createTestDb()
     expect((await currentComposition(db, profile)).find((x) => x.metric === 'bmi')).toBeUndefined()
