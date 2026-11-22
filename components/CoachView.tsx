@@ -131,6 +131,7 @@ export function CoachView() {
 
   /** Depois de enviar/reenviar: relê do banco (a pergunta fica salva mesmo se a IA falhar). */
   const settle = async (id: string | null, failure: unknown | null) => {
+    if (!id) id = (await loadConversations())[0]?.id ?? null // fallback: a mais recente
     if (id) {
       setConvId(id)
       setMessages(await loadMessages(id))

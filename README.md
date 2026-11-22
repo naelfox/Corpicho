@@ -27,16 +27,23 @@ Sem chave ou sem internet, tudo continua funcionando manualmente.
    (cabo, Drive, e-mail...).
 2. Abra o arquivo no celular e permita **instalar apps desconhecidos** para o app que o abriu.
 
-Ou, com o celular no USB e depuração ativada:
+Ou, com o celular no USB e depuração ativada (o `adb` vem no Android SDK, em `~/Android/Sdk/platform-tools/`; adicione essa pasta ao `PATH` ou use o caminho completo):
 
 ```bash
-adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+~/Android/Sdk/platform-tools/adb install -r android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
 ## Gerar uma nova build
 
-Precisa uma vez: JDK 17+ e Android SDK (o [Android Studio](https://developer.android.com/studio) traz os dois).
-Com `JAVA_HOME` e `ANDROID_HOME` configurados:
+Precisa uma vez: **JDK 21** (os plugins do Capacitor 8 exigem Java 21) e Android SDK
+(o [Android Studio](https://developer.android.com/studio) traz os dois). No Ubuntu: `sudo apt install openjdk-21-jdk`.
+Se aparecer `Cannot find a Java installation ... languageVersion=21`, falta o JDK 21 ou o `JAVA_HOME` aponta para outro.
+Com as variáveis configuradas:
+
+```bash
+export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+export ANDROID_HOME=$HOME/Android/Sdk
+```
 
 ```bash
 npm install
