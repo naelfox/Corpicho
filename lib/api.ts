@@ -24,6 +24,8 @@ import {
   startSession, type ExerciseKind, type OpenSession, type Plan, type PlanItem, type RecentSession, type SetInput,
 } from './training'
 import { generatePlan, type PlanDraft } from './ai/workout'
+import { addBodyPhoto, deleteBodyPhoto, getBodyPhotos, photoSessions, type Angle, type PhotoSession } from './bodyPhotos'
+import { describeChanges } from './ai/photoCompare'
 import { getMessages, listConversations, retryLastMessage, sendCoachMessage, type CoachMessage, type Conversation } from './ai/coach'
 
 /**
@@ -356,4 +358,55 @@ export async function sendCoachApi(input: { conversationId?: string; text: strin
 /** Reenvia a última pergunta sem resposta, sem duplicá-la. */
 export async function retryCoachApi(conversationId: string): Promise<{ conversationId: string; reply: string }> {
   return write((db) => retryLastMessage(db, conversationId))
+}
+
+// ── Fotos do corpo ───────────────────────────────────────────────────────────
+// Ficam só em Directory.Data (área privada do app). Nada de galeria, nuvem ou compartilhar.
+
+export type { Angle, PhotoSession }
+
+export async function loadPhotoSessions(): Promise<PhotoSession[]> {
+  return photoSessions(await getDb())
+}
+
+/**
+ * Foto do corpo de um ângulo: câmera (ou `fromDataUrl`, do seletor de arquivo no navegador), reduzida para
+ * ≤1600 px JPEG 0.85 e guardada na área privada. Cancelado → null.
+ */
+export async function takeBodyPhoto(angle: Angle, fromDataUrl?: string): Promise<string | null> {
+  const { takePhoto, resizeForAi, savePrivate, deletePrivate } = await photos()
+  const original = fromDataUrl ?? (await takePhoto())?.dataUrl
+  if (!original) return null
+  const path = await savePrivate(await resizeForAi(original, 1600, 0.85), 'body')
+  try {
+    return await write((db) => addBodyPhoto(db, { angle, path }))
+  } catch (e) {
+    await deletePrivate(path).catch(() => {})
+    throw e
+  }
+}
+
+/** Apaga a foto (registro e arquivo). */
+export async function deleteBodyPhotoApi(id: string): Promise<void> {
+  await write((db) => deleteBodyPhoto(db, id))
+}
+
+const ddmmyyyy = (day: Day) => day.split('-').reverse().join('/')
+
+/** Descreve as mudanças visuais entre as fotos de antes e de depois (cópias ≤1024 px). Lança AiError. */
+export async function describeChangesApi(input: { beforeIds: string[]; afterIds: string[] }): Promise<string> {
+  const db = await getDb()
+  const { loadPrivate, resizeForAi } = await photos()
+  const load = async (ids: string[], tag: 'Antes' | 'Depois') => {
+    const rows = await getBodyPhotos(db, ids)
+    const images = await Promise.all(rows.map(async (r) => resizeForAi(await loadPrivate(r.path))))
+    return { images, labels: rows.map((r) => `${tag} – ${r.angle} (${ddmmyyyy(r.day)})`) }
+  }
+  const [before, after] = await Promise.all([load(input.beforeIds, 'Antes'), load(input.afterIds, 'Depois')])
+  return describeChanges(db, {
+    before: before.images,
+    after: after.images,
+    beforeLabels: before.labels,
+    afterLabels: after.labels,
+  })
 }

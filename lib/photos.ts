@@ -17,8 +17,8 @@ export async function takePhoto(): Promise<{ dataUrl: string } | null> {
   }
 }
 
-/** Reduz para no máximo `max` px no maior lado, JPEG 0.8. */
-export async function resizeForAi(dataUrl: string, max = 1024): Promise<string> {
+/** Reduz para no máximo `max` px no maior lado, em JPEG (`quality`, padrão 0.8). */
+export async function resizeForAi(dataUrl: string, max = 1024, quality = 0.8): Promise<string> {
   const img = new Image()
   await new Promise<void>((resolve, reject) => {
     img.onload = () => resolve()
@@ -32,7 +32,7 @@ export async function resizeForAi(dataUrl: string, max = 1024): Promise<string> 
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('canvas indisponível')
   ctx.drawImage(img, 0, 0, width, height)
-  return canvas.toDataURL('image/jpeg', 0.8)
+  return canvas.toDataURL('image/jpeg', quality)
 }
 
 const base64Of = (dataUrl: string) => dataUrl.slice(dataUrl.indexOf(',') + 1)

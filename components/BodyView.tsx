@@ -1,13 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Camera, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { loadBody, subscribe, type BodyData, type Region } from '@/lib/api'
 import { BodySilhouette } from './BodySilhouette'
 import { Segmented } from './Chips'
 import { CompositionCard } from './CompositionCard'
 import { EvolutionView } from './EvolutionView'
 import { MeasureSheet } from './MeasureSheet'
+import { PhotosView } from './PhotosView'
 import { btnPrimary } from './Sheet'
 import { WeightSheet } from './WeightSheet'
 import { dateOnly, num1 } from './format'
@@ -65,7 +66,7 @@ function Measures({ data }: { data: BodyData }) {
   )
 }
 
-/** Aba Corpo: medidas na silhueta, composição corporal, evolução e (em breve) fotos. */
+/** Aba Corpo: medidas na silhueta, composição corporal, evolução e fotos (com bloqueio). */
 export function BodyView() {
   const [view, setView] = useState<View>('medidas')
   const [data, setData] = useState<BodyData | null>(null)
@@ -94,15 +95,7 @@ export function BodyView() {
       {view === 'evolucao' ? (
         <EvolutionView />
       ) : view === 'fotos' ? (
-        <section className={`${card} flex flex-col items-center gap-3 py-10 text-center`}>
-          <span className="grid size-14 place-items-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent-text)]">
-            <Camera aria-hidden size={26} strokeWidth={1.75} />
-          </span>
-          <p className="text-[17px] font-semibold">Em breve</p>
-          <p className="max-w-xs text-[14px] leading-snug text-[var(--muted)]">
-            Fotos de frente, lado e costas, guardadas só no aparelho, para comparar datas.
-          </p>
-        </section>
+        <PhotosView />
       ) : !data ? (
         error ? (
           <div className="flex min-h-[40dvh] flex-col items-center justify-center gap-3 text-center">
