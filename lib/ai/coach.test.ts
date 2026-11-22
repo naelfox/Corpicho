@@ -56,6 +56,13 @@ describe('coach', () => {
     expect(msgs.map((x) => x.role)).toEqual(['user', 'assistant'])
   })
 
+  it('erro na primeira mensagem expõe o id da conversa criada', async () => {
+    const db = await createTestDb()
+    const err = await sendCoachMessage(db, { text: 'oi', deps: deps(failing()) }).catch((e) => e)
+    const [conv] = await listConversations(db)
+    expect(err.conversationId).toBe(conv.id)
+  })
+
   it('retry sem mensagem pendente do usuário é recusado', async () => {
     const db = await createTestDb()
     const r = await sendCoachMessage(db, { text: 'oi', deps: deps(ok('olá')) })

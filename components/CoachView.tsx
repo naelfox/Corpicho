@@ -131,7 +131,6 @@ export function CoachView() {
 
   /** Depois de enviar/reenviar: relê do banco (a pergunta fica salva mesmo se a IA falhar). */
   const settle = async (id: string | null, failure: unknown | null) => {
-    if (!id) id = (await loadConversations())[0]?.id ?? null // conversa recém-criada é a mais recente
     if (id) {
       setConvId(id)
       setMessages(await loadMessages(id))
@@ -154,7 +153,7 @@ export function CoachView() {
         return
       }
       if (e instanceof AiError && e.code === 'no_key') toast(AI_ERROR_TEXT.no_key, 'erro')
-      await settle(id, e)
+      await settle(e instanceof AiError && e.conversationId ? e.conversationId : id, e)
     } finally {
       setSending(false)
     }
@@ -202,15 +201,15 @@ export function CoachView() {
   const last = messages[messages.length - 1]
   const unanswered = !sending && last?.role === 'user' && !!convId
   const btnTop =
-    'flex h-10 items-center gap-1.5 rounded-xl px-3 text-[14px] font-medium text-[var(--accent-text)] transition-[transform,background-color] duration-150 ease-[var(--ease-out)] active:scale-[0.97] [@media(hover:hover)]:hover:bg-[var(--track)]'
+    'flex h-10 items-center gap-1.5 disabled:opacity-40 rounded-xl px-3 text-[14px] font-medium text-[var(--accent-text)] transition-[transform,background-color] duration-150 ease-[var(--ease-out)] active:scale-[0.97] [@media(hover:hover)]:hover:bg-[var(--track)]'
 
   return (
     <div className="flex flex-col pt-2">
       <div className="mb-2 flex items-center justify-between">
-        <button type="button" onClick={() => { void refreshList(); setListOpen(true) }} className={`${btnTop} -ml-3`}>
+        <button type="button" disabled={sending} onClick={() => { void refreshList(); setListOpen(true) }} className={`${btnTop} -ml-3`}>
           <MessagesSquare aria-hidden size={18} /> Conversas
         </button>
-        <button type="button" onClick={fresh} className={`${btnTop} -mr-3`}>
+        <button type="button" disabled={sending} onClick={fresh} className={`${btnTop} -mr-3`}>
           <MessageCirclePlus aria-hidden size={18} /> Nova conversa
         </button>
       </div>

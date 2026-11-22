@@ -81,7 +81,12 @@ export async function sendCoachMessage(
     id = c.id
   }
   await db.query(`insert into ai_messages (conversation_id, role, content) values ($1, 'user', $2)`, [id, text])
-  return { conversationId: id, reply: await reply(db, id, input.deps) }
+  try {
+    return { conversationId: id, reply: await reply(db, id, input.deps) }
+  } catch (e) {
+    if (e instanceof AiError) e.conversationId = id // a tela precisa saber qual conversa foi criada
+    throw e
+  }
 }
 
 /** Reenvia a última mensagem do usuário (sem resposta) sem duplicá-la. */

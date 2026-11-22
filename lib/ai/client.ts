@@ -8,6 +8,8 @@ export type AiErrorCode = 'no_key' | 'invalid_key' | 'offline' | 'quota' | 'limi
 
 export class AiError extends Error {
   code: AiErrorCode
+  /** Preenchido pelo coach quando a conversa já existe no banco. */
+  conversationId?: string
   constructor(code: AiErrorCode, cause?: unknown) {
     super(code, cause === undefined ? undefined : { cause })
     this.name = 'AiError'

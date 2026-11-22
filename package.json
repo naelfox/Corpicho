@@ -8,6 +8,7 @@
     "prebuild": "node scripts/copy-pglite.mjs",
     "build": "next build",
     "android": "npm run build && cap sync android",
+    "apk": "npm run android && cd android && ./gradlew assembleDebug",
     "android:open": "cap open android",
     "lint": "eslint",
     "test": "vitest run"

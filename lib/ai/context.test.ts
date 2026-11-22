@@ -47,4 +47,12 @@ describe('buildContext', () => {
     expect(c).toContain('dor no joelho')
     expect(c).toMatch(/domingo/i)
   })
+
+  it('restrições do perfil são cortadas em 300 caracteres', async () => {
+    const db = await createTestDb()
+    await saveProfile(db, { ...profile, restrictions: 'z'.repeat(500) })
+    const c = await buildContext(db, now)
+    expect(c).toContain('z'.repeat(300) + '.')
+    expect(c).not.toContain('z'.repeat(301))
+  })
 })

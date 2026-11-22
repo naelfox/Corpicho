@@ -49,7 +49,7 @@ export async function buildContext(db: Db, now: Date = new Date()): Promise<stri
     profile
       ? `## Perfil\n${ageOn(profile.birthDate, today)} anos, sexo ${profile.sex === 'm' ? 'masculino' : 'feminino'}, ${int(profile.heightCm, 'cm')}; ` +
           `condicionamento ${FITNESS[profile.fitness]}, experiência ${profile.experience}; treina ${profile.daysPerWeek} dias/semana, ${profile.minutesPerSession} min; ` +
-          `equipamentos: ${profile.equipment.join(', ') || 'nenhum'}; restrições/lesões: ${profile.restrictions.trim() || 'nenhuma informada'}.`
+          `equipamentos: ${profile.equipment.join(', ') || 'nenhum'}; restrições/lesões: ${profile.restrictions.trim().slice(0, 300) || 'nenhuma informada'}.`
       : `## Perfil\n${NONE}`,
   )
 
