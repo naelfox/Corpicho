@@ -8,6 +8,14 @@ import { getSeries } from './series'
 import { getDashboard, type Dashboard } from './dashboard'
 import { parseNum } from './validate'
 import { monthUsage } from './ai/client'
+import { analyzePlate, type PlateItem } from './ai/plate'
+import { searchFoods, type Food } from './foods'
+import {
+  addMeal, deleteMeal, deleteMealItem, getDayMeals, getHistory, repeatMeal,
+  type MealType, type MealWithItems, type NewItem,
+} from './meals'
+import { sumMacros, type Macros } from './nutrition'
+import type { Day } from './dates'
 
 /**
  * As ações das telas, rodando no próprio aparelho contra o banco local.
@@ -95,4 +103,101 @@ export async function saveWeight(kgStr: string): Promise<void> {
 /** Gasto estimado e número de chamadas à IA no mês corrente. */
 export async function loadMonthUsage(): Promise<{ costUsd: number; calls: number }> {
   return monthUsage(await getDb())
+}
+
+// ── Comer ────────────────────────────────────────────────────────────────────
+
+export type { Food, MealType, MealWithItems, NewItem, PlateItem }
+
+/** Refeições do dia, totais e a meta (null se ainda não houver meta). */
+export async function loadDay(day: Day): Promise<{ meals: MealWithItems[]; totals: Macros; targets: Macros | null }> {
+  const db = await getDb()
+  const [meals, goal] = await Promise.all([getDayMeals(db, day), getGoal(db)])
+  return {
+    meals,
+    totals: sumMacros(meals.map((m) => m.totals)),
+    targets: goal ? { kcal: goal.kcal, protein: goal.proteinG, carbs: goal.carbsG, fat: goal.fatG } : null,
+  }
+}
+
+/** Busca alimentos (TACO + do usuário); texto vazio = usados recentemente. */
+export async function searchFoodsApi(q: string): Promise<Food[]> {
+  return searchFoods(await getDb(), q, 30)
+}
+
+export async function addMealApi(input: {
+  type: MealType
+  items: NewItem[]
+  source: 'manual' | 'ia_confirmada'
+  photoPath?: string
+}): Promise<string> {
+  return write((db) => addMeal(db, input))
+}
+
+/** Apaga a refeição (e a foto dela, se houver). */
+export async function deleteMealApi(id: string, photoPath?: string | null): Promise<void> {
+  await write((db) => deleteMeal(db, id))
+  if (photoPath) await discardPlatePhoto(photoPath)
+}
+
+export async function deleteMealItemApi(id: string): Promise<void> {
+  await write((db) => deleteMealItem(db, id))
+}
+
+/** Copia a refeição para hoje com o tipo escolhido. */
+export async function repeatMealApi(id: string, type: MealType): Promise<string> {
+  return write((db) => repeatMeal(db, id, type))
+}
+
+export const HISTORY_PAGE = 14
+
+/** Dias com registro antes de `before` (exclusivo), do mais recente para o mais antigo. */
+export async function loadHistory(before?: Day, limit = HISTORY_PAGE): Promise<{ day: Day; meals: MealWithItems[] }[]> {
+  return getHistory(await getDb(), { before, limit })
+}
+
+/** Manda a foto (já reduzida) para a IA. Lança AiError (ver AI_ERROR_TEXT). Nada é salvo aqui. */
+export async function analyzePlateApi(dataUrl: string): Promise<PlateItem[]> {
+  return analyzePlate(await getDb(), dataUrl)
+}
+
+// Capacitor só é carregado quando a câmera/arquivos são usados (o build estático e os testes não o tocam).
+const photos = () => import('./photos')
+
+/** true no app Android; no navegador (dev) a foto vem de um <input type="file">. */
+export async function hasNativeCamera(): Promise<boolean> {
+  const { Capacitor } = await import('@capacitor/core')
+  return Capacitor.isNativePlatform()
+}
+
+/**
+ * Foto do prato: abre a câmera (ou usa `fromDataUrl`, vindo do seletor de arquivo), reduz para ≤1024 px
+ * e guarda na área privada do app. Cancelado → null. Se guardar falhar, segue sem `path` (a foto só não fica salva).
+ */
+export async function takeAndStorePlatePhoto(fromDataUrl?: string): Promise<{ dataUrl: string; path: string | null } | null> {
+  const { takePhoto, resizeForAi, savePrivate } = await photos()
+  const original = fromDataUrl ?? (await takePhoto())?.dataUrl
+  if (!original) return null
+  const dataUrl = await resizeForAi(original)
+  let path: string | null = null
+  try {
+    path = await savePrivate(dataUrl, 'meals')
+  } catch (e) {
+    console.error(e)
+  }
+  return { dataUrl, path }
+}
+
+/** Apaga uma foto de refeição guardada (revisão cancelada ou refeição apagada). Falha é ignorada. */
+export async function discardPlatePhoto(path: string): Promise<void> {
+  try {
+    await (await photos()).deletePrivate(path)
+  } catch (e) {
+    console.error(e)
+  }
+}
+
+/** Lê uma foto guardada como data URL (para miniaturas). */
+export async function loadPhoto(path: string): Promise<string> {
+  return (await photos()).loadPrivate(path)
 }

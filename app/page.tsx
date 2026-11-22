@@ -9,6 +9,7 @@ import { SettingsSheet } from '@/components/SettingsSheet'
 import { restoreTheme } from '@/components/ThemeToggle'
 import { Toaster, toast } from '@/components/Toast'
 import { Dashboard } from '@/components/Dashboard'
+import { FoodView } from '@/components/FoodView'
 import { Placeholder } from '@/components/tabs/Placeholder'
 
 /** Enquanto o banco local abre: marca do app + spinner. */
@@ -26,9 +27,7 @@ function Loading() {
   )
 }
 
-const TEXT: Record<Tab, string> = {
-  inicio: '',
-  comer: 'Registre refeições à mão ou pela foto do prato.',
+const TEXT: Record<Exclude<Tab, 'inicio' | 'comer'>, string> = {
   corpo: 'Medidas, peso, composição corporal, evolução e fotos.',
   treino: 'Sua rotina semanal e o registro de cada treino.',
   coach: 'Converse com o coach sobre seus dados.',
@@ -36,6 +35,7 @@ const TEXT: Record<Tab, string> = {
 
 function TabBody({ tab }: { tab: Tab }) {
   if (tab === 'inicio') return <Dashboard />
+  if (tab === 'comer') return <FoodView />
   const t = TABS.find((x) => x.id === tab)!
   return <Placeholder key={tab} icon={t.icon} title={t.label} text={TEXT[tab]} />
 }

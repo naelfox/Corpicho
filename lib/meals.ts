@@ -1,5 +1,5 @@
 import { withTx, type Db } from './db'
-import { todayIn, type Day } from './dates'
+import { TZ, todayIn, type Day } from './dates'
 import { createFood, touchFood } from './foods'
 import { scaleFood, sumMacros, type Macros, type Per100 } from './nutrition'
 import { ValidationError, parseNum } from './validate'
@@ -14,7 +14,19 @@ export const MEAL_LABEL: Record<MealType, string> = {
   outras: 'Outras',
 }
 
-const MEAL_TYPES = Object.keys(MEAL_LABEL) as MealType[]
+export const MEAL_TYPES = Object.keys(MEAL_LABEL) as MealType[]
+
+const hourFmt = new Intl.DateTimeFormat('en-US', { timeZone: TZ, hour: 'numeric', hourCycle: 'h23' })
+
+/** Refeição sugerida pela hora em São Paulo: <10h café, <15h almoço, <18h lanche, <22h jantar, senão outras. */
+export function mealTypeAt(now: Date = new Date()): MealType {
+  const h = Number(hourFmt.format(now))
+  if (h < 10) return 'cafe'
+  if (h < 15) return 'almoco'
+  if (h < 18) return 'lanche'
+  if (h < 22) return 'jantar'
+  return 'outras'
+}
 
 export type NewItem =
   | { foodId?: string; name: string; grams: number; per100: Per100 }

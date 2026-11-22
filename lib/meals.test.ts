@@ -3,13 +3,26 @@ import { createTestDb } from '@/test/db'
 import { ValidationError } from '@/lib/validate'
 import { createFood } from '@/lib/foods'
 import {
-  addMeal, dailyTotals, deleteMeal, deleteMealItem, getDayMeals, getDayTotals, getHistory, repeatMeal, MEAL_LABEL,
+  addMeal, dailyTotals, deleteMeal, deleteMealItem, getDayMeals, getDayTotals, getHistory, repeatMeal, MEAL_LABEL, mealTypeAt,
 } from '@/lib/meals'
 
 const arroz = { kcal100: 128, protein100: 2.5, carbs100: 26.2, fat100: 0.2 }
 const now = new Date('2026-11-22T15:00:00Z')
 
 describe('refeições', () => {
+  it('mealTypeAt usa a hora de São Paulo', () => {
+    const at = (h: string) => mealTypeAt(new Date(`2026-11-22T${h}:00-03:00`))
+    expect(at('00:00')).toBe('cafe')
+    expect(at('09:59')).toBe('cafe')
+    expect(at('10:00')).toBe('almoco')
+    expect(at('14:59')).toBe('almoco')
+    expect(at('15:00')).toBe('lanche')
+    expect(at('18:00')).toBe('jantar')
+    expect(at('21:59')).toBe('jantar')
+    expect(at('22:00')).toBe('outras')
+    expect(at('23:30')).toBe('outras')
+  })
+
   it('rótulos', () => {
     expect(MEAL_LABEL.cafe).toBe('Café da manhã')
     expect(MEAL_LABEL.almoco).toBe('Almoço')
