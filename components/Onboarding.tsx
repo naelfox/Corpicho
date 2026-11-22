@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, X } from 'lucide-react'
 import { saveProfileAndGoal } from '@/lib/api'
 import { todayIn } from '@/lib/dates'
@@ -166,6 +166,30 @@ export function Onboarding({
     else onCancel?.()
   }
 
+  // "Voltar" do Android: volta um passo (ou fecha o editor) em vez de sair do app.
+  // Uma entrada no histórico segura o voltar enquanto há para onde voltar dentro do formulário.
+  const guarded = mode === 'edit' || step !== 'intro'
+  const nav = useRef({ back, idx })
+  useEffect(() => {
+    nav.current = { back, idx }
+  })
+  useEffect(() => {
+    if (!guarded) return
+    if (!window.history.state?.onboarding) window.history.pushState({ onboarding: true }, '')
+    const onPop = () => {
+      // Ainda sobra passo para trás depois deste? Então segura o próximo voltar também.
+      if (nav.current.idx > 0) window.history.pushState({ onboarding: true }, '')
+      nav.current.back()
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [guarded])
+  /** Saindo pelo botão (salvar/fechar): tira a entrada de guarda do histórico. */
+  const leave = (fn?: () => void) => {
+    if (window.history.state?.onboarding) window.history.back()
+    fn?.()
+  }
+
   const save = async () => {
     setSaving(true)
     setError(null)
@@ -196,7 +220,7 @@ export function Onboarding({
       const newWeight = mode === 'new' || initial?.weightKg == null || weightKg !== initial.weightKg ? weightKg : undefined
       await saveProfileAndGoal({ profile, goal, weightKg: newWeight })
       toast(mode === 'new' ? 'Tudo pronto! Bem-vindo ao Corpicho.' : 'Perfil e meta salvos.')
-      onDone()
+      leave(onDone)
     } catch (e) {
       if (e instanceof ValidationError) setError(e.message)
       else {
@@ -271,7 +295,7 @@ export function Onboarding({
       <header className="flex items-center gap-2 py-2">
         <button
           type="button"
-          onClick={mode === 'edit' ? onCancel : back}
+          onClick={mode === 'edit' ? () => leave(onCancel) : back}
           aria-label={mode === 'edit' ? 'Fechar sem salvar' : 'Voltar'}
           className="-ml-2 grid size-11 shrink-0 place-items-center rounded-xl text-[var(--muted)] transition-transform duration-150 ease-[var(--ease-out)] active:scale-[0.92]"
         >

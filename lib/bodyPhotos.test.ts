@@ -121,10 +121,19 @@ describe('fotos do corpo', () => {
     })
 
     it('falha ao registrar no banco apaga os arquivos gravados', async () => {
-      const db = await createTestDb()
+      const broken = { query: async () => { throw new Error('banco fora') } } as never
       const { deps, files } = fakeDeps()
-      await expect(storeBodyPhoto(db, { angle: 'cima' as never, original: 'img' }, deps)).rejects.toThrow(ValidationError)
+      await expect(storeBodyPhoto(broken, { angle: 'frente', original: 'img' }, deps)).rejects.toThrow('banco fora')
       expect(files.size).toBe(0)
+    })
+
+    it('ângulo inválido é recusado antes de gravar qualquer arquivo', async () => {
+      const db = await createTestDb()
+      const { deps } = fakeDeps()
+      let saves = 0
+      const counted: StoreDeps = { ...deps, save: async (d) => (saves++, deps.save(d)) }
+      await expect(storeBodyPhoto(db, { angle: 'cima' as never, original: 'img' }, counted)).rejects.toThrow('Ângulo inválido')
+      expect(saves).toBe(0)
     })
 
     it('falha ao guardar a foto relança e não registra nada', async () => {

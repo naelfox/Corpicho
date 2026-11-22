@@ -281,10 +281,11 @@ export async function finishSession(
 ): Promise<void> {
   checkFinish(f)
   const rows = await db.query(
-    `update workout_sessions set finished_at = $2, duration_min = $3, rpe = $4, notes = $5 where id = $1 returning id`,
+    `update workout_sessions set finished_at = $2, duration_min = $3, rpe = $4, notes = $5
+     where id = $1 and finished_at is null returning id`,
     [sessionId, now.toISOString(), f.durationMin, f.rpe, f.notes?.trim().slice(0, 1000) || null],
   )
-  if (!rows.length) throw new ValidationError('Treino não encontrado.')
+  if (!rows.length) throw new ValidationError('Treino não encontrado ou já concluído.')
 }
 
 /** Apaga uma sessão ainda não concluída (e as séries dela). */

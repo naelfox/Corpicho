@@ -44,6 +44,7 @@ export async function storeBodyPhoto(
   input: { angle: Angle; original: string; at?: Date },
   deps: StoreDeps,
 ): Promise<string> {
+  if (!isAngle(input.angle)) throw new ValidationError('Ângulo inválido.')
   const path = await deps.save(await deps.resize(input.original, 1600, 0.85))
   let thumbPath: string | null = null
   try {

@@ -131,6 +131,17 @@ describe('treino: sessões', () => {
     await expect(finishSession(db, s, { durationMin: 0, rpe: 5 })).rejects.toBeInstanceOf(ValidationError)
   })
 
+  it('finishSession não sobrescreve um treino já concluído', async () => {
+    const db = await createTestDb()
+    const s = await startSession(db, { now })
+    await finishSession(db, s, { durationMin: 30, rpe: 6, notes: 'primeira' })
+    await expect(finishSession(db, s, { durationMin: 90, rpe: 9 })).rejects.toBeInstanceOf(ValidationError)
+    const [row] = await db.query<{ duration_min: number; rpe: number; notes: string }>(
+      `select duration_min, rpe, notes from workout_sessions where id = $1`, [s],
+    )
+    expect(row).toEqual({ duration_min: 30, rpe: 6, notes: 'primeira' })
+  })
+
   it('logActivity: caminhada de 40 min entra em workoutsThisWeek', async () => {
     const db = await createTestDb()
     await saveGoal(db, { startWeightKg: 100, targetWeightKg: 80, kcal: 2000, proteinG: 150, carbsG: 200, fatG: 60 })

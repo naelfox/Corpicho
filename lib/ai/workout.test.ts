@@ -5,7 +5,8 @@ import { saveGoal, saveProfile, type Profile } from '@/lib/profile'
 import { addWeight } from '@/lib/body'
 import { ValidationError } from '@/lib/validate'
 import { createPlan, finishSession, getActivePlan, getPlanDay, logSet, startSession } from '@/lib/training'
-import { applyAdjustments, estimateSeconds, generatePlan, normalizeWorkoutPlan, suggestAdjustments } from './workout'
+import { applyAdjustments, estimateSeconds, generatePlan, normalizeWorkoutPlan, suggestAdjustments, validateAdjustments } from './workout'
+import type { Plan, TrainingStats } from '@/lib/training'
 
 const now = new Date('2026-11-22T15:00:00Z')
 const profile: Profile = {
@@ -200,5 +201,29 @@ describe('ajustes sugeridos', () => {
     expect(plans).toHaveLength(2)
     expect(plans.filter((p) => p.active)).toHaveLength(1)
     await expect(applyAdjustments(db, [adj(s.id, 'loadKg', 20, 30) as never], now)).rejects.toBeInstanceOf(ValidationError)
+  })
+})
+
+describe('limites do aumento (≤ 10 %)', () => {
+  const plan = (v: { loadKg?: number; reps?: number }) =>
+    ({
+      id: 'p', name: 'P', origin: 'manual', notes: null, createdAt: '',
+      items: [{ id: 'i', exercise: { name: 'Supino' }, sets: 3, reps: v.reps ?? 10, loadKg: v.loadKg ?? null, durationS: null, restS: 60 }],
+    }) as unknown as Plan
+  const stats: TrainingStats = {
+    sessions: 3, avgRpe: 6, restDaysAvg: 2,
+    byExercise: [{ name: 'Supino', sets: 9, sessions: 3, bestLoad: 20, avgRpe: 6, lastAt: '' }],
+  }
+  it.each([
+    ['loadKg', 20, 22, true],
+    ['loadKg', 20, 22.5, false],
+    ['reps', 8, 9, true],
+    ['reps', 8, 10, false],
+    ['reps', 20, 22, true],
+    ['reps', 20, 23, false],
+  ] as const)('%s %d → %d: aceito = %s', (field, from, to, ok) => {
+    const p = plan({ [field]: from })
+    const out = validateAdjustments(p, stats, [{ planItemId: 'i', field, from, to, reason: 'r' }])
+    expect(out.length === 1).toBe(ok)
   })
 })

@@ -7,7 +7,7 @@ const fmt = (n: number) => Math.round(n).toLocaleString('pt-BR')
 /**
  * Anel de calorias: consumido / meta, com o que falta no centro.
  * Passou da meta: anel cheio em tom quente neutro (sem alarme vermelho).
- * Anima o preenchimento ao montar (o CSS global desliga a transição com reduced-motion).
+ * Anima o preenchimento ao montar; com reduced-motion a transição nem existe (motion-safe).
  */
 export function CalorieRing({ consumed, target, size = 168 }: { consumed: number; target: number; size?: number }) {
   const stroke = 14
@@ -36,7 +36,7 @@ export function CalorieRing({ consumed, target, size = 168 }: { consumed: number
           strokeLinecap="round"
           strokeDasharray={c}
           strokeDashoffset={c * (1 - shown)}
-          style={{ transition: 'stroke-dashoffset 700ms var(--ease-out), stroke 200ms' }}
+          className="motion-safe:transition-[stroke-dashoffset,stroke] motion-safe:duration-700 motion-safe:ease-[var(--ease-out)]"
         />
       </svg>
       <div

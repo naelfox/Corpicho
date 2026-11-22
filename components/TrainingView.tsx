@@ -7,6 +7,7 @@ import {
   type Adjustment, type AdjustmentSuggestion, type PlanDraft, type TrainingData,
 } from '@/lib/api'
 import { AI_ERROR_TEXT, AiError } from '@/lib/ai/client'
+import { todayIn } from '@/lib/dates'
 import { ValidationError } from '@/lib/validate'
 import { ExerciseCard } from './ExerciseCard'
 import { PlanEditor, WEEK_ORDER, WEEKDAY_NAME, WeekStrip } from './PlanEditor'
@@ -208,7 +209,9 @@ export function TrainingView() {
   const generate = async () => {
     setGenerating(true)
     try {
-      setDraft(await generatePlanDraft())
+      const d = await generatePlanDraft()
+      if (d.items.length) setDraft(d)
+      else toast('A IA não gerou exercícios. Tente de novo.', 'erro')
     } catch (e) {
       if (e instanceof ValidationError) toast(e.message, 'erro')
       else {
@@ -256,6 +259,8 @@ export function TrainingView() {
   const items = plan?.items.filter((i) => i.weekday === shown) ?? []
   const todayItems = plan?.items.filter((i) => i.weekday === today) ?? []
   const isToday = shown === today
+  // Já concluiu um treino do plano hoje: o botão continua (pode treinar de novo), só muda o texto.
+  const doneToday = recent.some((r) => r.day === todayIn() && r.planId !== null)
 
   const start = async () => {
     if (open) {
@@ -360,7 +365,7 @@ export function TrainingView() {
 
           {isToday && todayItems.length > 0 && !open && (
             <button type="button" onClick={() => void start()} disabled={starting} className={`${btnPrimary} flex items-center justify-center gap-2`}>
-              <Play aria-hidden size={18} /> Começar treino
+              <Play aria-hidden size={18} /> {doneToday ? 'Treinar de novo' : 'Começar treino'}
             </button>
           )}
         </>
