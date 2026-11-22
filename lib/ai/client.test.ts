@@ -97,6 +97,62 @@ describe('runAi', () => {
   })
 })
 
+describe('mapeamento de erros', () => {
+  const run = async (thrown: unknown) => {
+    const db = await createTestDb()
+    const model = new MockLanguageModelV4({
+      doGenerate: async () => {
+        throw thrown
+      },
+    })
+    return runAi(db, {
+      feature: 't',
+      kind: 'text',
+      call: async () => {
+        throw thrown
+      },
+      deps: { model, modelId: 'gpt-5.4-mini', limitUsd: 5 },
+    })
+  }
+  const retry = (lastError: unknown) =>
+    Object.assign(new Error('Failed after 3 attempts. Last error: x'), { name: 'AI_RetryError', lastError })
+
+  it('RetryError com 429 vira quota', async () => {
+    await expect(run(retry(Object.assign(new Error('x'), { statusCode: 429 })))).rejects.toMatchObject({ code: 'quota' })
+  })
+  it('RetryError com 401 vira invalid_key', async () => {
+    await expect(run(retry(Object.assign(new Error('x'), { statusCode: 401 })))).rejects.toMatchObject({
+      code: 'invalid_key',
+    })
+  })
+  it('insufficient_quota no corpo vira quota', async () => {
+    await expect(
+      run(retry(Object.assign(new Error('x'), { statusCode: 400, responseBody: '{"code":"insufficient_quota"}' }))),
+    ).rejects.toMatchObject({ code: 'quota' })
+  })
+  it('abort vira timeout', async () => {
+    await expect(run(Object.assign(new Error('aborted'), { name: 'AbortError' }))).rejects.toMatchObject({
+      code: 'timeout',
+    })
+  })
+  it('erro de schema vira bad_output', async () => {
+    await expect(run(Object.assign(new Error('no object'), { name: 'AI_NoObjectGeneratedError' }))).rejects.toMatchObject({
+      code: 'bad_output',
+    })
+  })
+  it('falha ao gravar uso não perde o resultado', async () => {
+    const db = await createTestDb()
+    const broken = { query: async (t: string, p?: unknown[]) => (/insert into ai_usage/.test(t) ? Promise.reject(new Error("x")) : db.query(t, p)) }
+    const out = await runAi(broken as typeof db, {
+      feature: 't',
+      kind: 'text',
+      call: async () => ({ value: 7, usage: {} }),
+      deps: { model: okModel(), modelId: 'gpt-5.4-mini', limitUsd: 5 },
+    })
+    expect(out).toBe(7)
+  })
+})
+
 describe('costUsd', () => {
   it('modelo desconhecido usa o preço mais caro', () => {
     expect(costUsd('modelo-x', 1_000_000, 0)).toBe(costUsd('gpt-5.5', 1_000_000, 0))

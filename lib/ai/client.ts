@@ -1,4 +1,4 @@
-import { generateText, type LanguageModel } from 'ai'
+import { generateText, RetryError, type LanguageModel } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
 import type { Db } from '@/lib/db'
 import { todayIn } from '@/lib/dates'
@@ -63,9 +63,18 @@ function statusOf(e: unknown): number | undefined {
 
 export function mapError(e: unknown): AiError {
   if (e instanceof AiError) return e
-  const err = e as { name?: string; message?: string; responseBody?: string; cause?: unknown } | null
+  const err = e as {
+    name?: string
+    message?: string
+    responseBody?: string
+    cause?: unknown
+    lastError?: unknown
+    data?: unknown
+  } | null
+  // O SDK tenta de novo (429, 5xx, rede) e, esgotadas as tentativas, embrulha o último erro num RetryError.
+  if ((RetryError.isInstance(e) || err?.name === 'AI_RetryError') && err?.lastError) return mapError(err.lastError)
   const status = statusOf(e)
-  const body = `${err?.responseBody ?? ''} ${err?.message ?? ''}`
+  const body = `${err?.responseBody ?? ''} ${err?.message ?? ''} ${err?.data ? JSON.stringify(err.data) : ''}`
   if (status === 401 || status === 403) return new AiError('invalid_key', e)
   if (status === 429 || /insufficient_quota/.test(body)) return new AiError('quota', e)
   if (err?.name === 'AbortError' || err?.name === 'TimeoutError') return new AiError('timeout', e)
@@ -114,10 +123,14 @@ export async function runAi<T>(db: Db, opts: RunAiOptions<T>): Promise<T> {
   }
   const tin = res.usage.inputTokens ?? 0
   const tout = res.usage.outputTokens ?? 0
-  await db.query(
-    `insert into ai_usage (feature, model, tokens_in, tokens_out, cost_usd) values ($1, $2, $3, $4, $5)`,
-    [opts.feature, id, tin, tout, costUsd(id, tin, tout)],
-  )
+  try {
+    await db.query(
+      `insert into ai_usage (feature, model, tokens_in, tokens_out, cost_usd) values ($1, $2, $3, $4, $5)`,
+      [opts.feature, id, tin, tout, costUsd(id, tin, tout)],
+    )
+  } catch {
+    // a resposta já foi paga: não perder o resultado por falha ao registrar o uso
+  }
   return res.value
 }
 

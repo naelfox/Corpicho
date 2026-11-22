@@ -12,7 +12,7 @@ const MODEL_TEXT = 'model_text'
 const LIMIT = 'monthly_limit_usd'
 const THEME = 'theme'
 
-export const DEFAULT_MODELS = { vision: 'gpt-5.4-mini', text: 'gpt-5.4-nano' }
+export const DEFAULT_MODELS = { vision: 'gpt-5.4-mini', text: 'gpt-5.4-mini' }
 export const DEFAULT_LIMIT_USD = 5
 export type Theme = 'system' | 'light' | 'dark'
 
