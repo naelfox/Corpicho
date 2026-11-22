@@ -1,0 +1,5 @@
+/** Tamanho que cabe em max x max mantendo a proporção; nunca aumenta. */
+export function fitWithin(width: number, height: number, max: number): { width: number; height: number } {
+  const scale = Math.min(1, max / Math.max(width, height))
+  return { width: Math.round(width * scale), height: Math.round(height * scale) }
+}
