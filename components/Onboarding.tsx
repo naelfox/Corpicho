@@ -7,6 +7,7 @@ import { todayIn } from '@/lib/dates'
 import { ageOn, suggestTargets, type Macros, type Sex } from '@/lib/nutrition'
 import type { Goal, Profile } from '@/lib/profile'
 import { ValidationError, parseNum } from '@/lib/validate'
+import { fromIso, maskDate, toIso } from './birthDate'
 import { Chip, OptionList, Segmented } from './Chips'
 import { NumberField } from './NumberField'
 import { btnGhost, btnPrimary, fieldLabel } from './Sheet'
@@ -70,6 +71,7 @@ export function Onboarding({
   const [saving, setSaving] = useState(false)
 
   const [birthDate, setBirthDate] = useState(p?.birthDate ?? '')
+  const [birthText, setBirthText] = useState(fromIso(p?.birthDate ?? ''))
   const [sex, setSex] = useState<Sex | null>(p?.sex ?? null)
   const [height, setHeight] = useState(str(p?.heightCm))
   const [activity, setActivity] = useState<number | null>(p?.activityLevel ?? null)
@@ -347,12 +349,21 @@ export function Onboarding({
                 </label>
                 <input
                   id="birth"
-                  type="date"
-                  value={birthDate}
-                  max={todayIn()}
-                  onChange={(e) => setBirthDate(e.target.value)}
-                  className="h-12 w-full rounded-xl border border-[var(--line)] bg-[var(--bg)] px-3 text-[16px] outline-none transition-[border-color] duration-150 focus:border-[var(--accent)]"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="bday"
+                  placeholder="DD/MM/AAAA"
+                  value={birthText}
+                  onChange={(e) => {
+                    const masked = maskDate(e.target.value)
+                    setBirthText(masked)
+                    setBirthDate(toIso(masked))
+                  }}
+                  className="h-12 w-full rounded-xl border border-[var(--line)] bg-[var(--bg)] px-3 text-[16px] tabular-nums outline-none transition-[border-color] duration-150 focus:border-[var(--accent)]"
                 />
+                {birthText.length === 10 && !birthDate && (
+                  <p className="mt-2 text-[13px] text-[var(--danger)]">Essa data não existe.</p>
+                )}
               </div>
               <div>
                 <span className={fieldLabel}>Sexo</span>
