@@ -9,7 +9,7 @@ import { CalorieRing } from './CalorieRing'
 import { LineChart } from './LineChart'
 import { MacroBars } from './MacroBars'
 import { btnPrimary } from './Sheet'
-import { toast } from './Toast'
+import { ReportsView } from './ReportsView'
 import { WeightSheet } from './WeightSheet'
 
 const METRIC_LABEL: Record<Metric, string> = {
@@ -29,6 +29,7 @@ export function Dashboard() {
   const [data, setData] = useState<Data | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [weightOpen, setWeightOpen] = useState(false)
+  const [reportsOpen, setReportsOpen] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -139,7 +140,7 @@ export function Dashboard() {
 
       <button
         type="button"
-        onClick={() => toast('Em breve')}
+        onClick={() => setReportsOpen(true)}
         className={`${card} flex min-h-14 items-center gap-3 text-left transition-transform duration-150 ease-[var(--ease-out)] active:scale-[0.98]`}
       >
         <FileText aria-hidden size={20} strokeWidth={1.75} className="text-[var(--accent-text)]" />
@@ -147,6 +148,7 @@ export function Dashboard() {
         <ChevronRight aria-hidden size={18} className="text-[var(--muted)]" />
       </button>
 
+      <ReportsView open={reportsOpen} onClose={() => setReportsOpen(false)} />
       <WeightSheet open={weightOpen} onClose={() => setWeightOpen(false)} />
     </div>
   )

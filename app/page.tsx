@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Settings } from 'lucide-react'
-import { loadProfile, loadProfileForm, subscribe } from '@/lib/api'
+import { ensureReportsOnOpen, loadProfile, loadProfileForm, subscribe } from '@/lib/api'
 import { BottomNav, NAV_PAD, TABS, type Tab } from '@/components/BottomNav'
 import { Onboarding, type ProfileFormInitial } from '@/components/Onboarding'
 import { SettingsSheet } from '@/components/SettingsSheet'
@@ -61,6 +61,11 @@ export default function Home() {
     void reload()
     return subscribe(reload)
   }, [reload])
+
+  // Uma vez por abertura, sem bloquear a tela: relatório da última semana fechada.
+  useEffect(() => {
+    if (status === 'ready') void ensureReportsOnOpen()
+  }, [status])
 
   // Abas além do Início entram no histórico: o "voltar" do Android (e do navegador) volta para o Início.
   const go = useCallback((to: Tab) => {

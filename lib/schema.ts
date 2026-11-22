@@ -193,7 +193,7 @@ create table weekly_reports (
   id uuid primary key default gen_random_uuid(),
   week_start date not null unique,
   numbers jsonb not null,
-  analysis text not null,
+  analysis text,
   created_at timestamptz not null default now()
 );
 
@@ -208,4 +208,7 @@ create table ai_usage (
 );
 `
 
-export const MIGRATIONS: string[] = []
+export const MIGRATIONS: string[] = [
+  // 1: relatório semanal pode existir sem análise (IA indisponível)
+  `alter table weekly_reports alter column analysis drop not null`,
+]

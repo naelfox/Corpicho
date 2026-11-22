@@ -26,6 +26,9 @@ import {
 import { generatePlan, type PlanDraft } from './ai/workout'
 import { deleteBodyPhoto, getBodyPhotos, photoSessions, storeBodyPhoto, type Angle, type PhotoSession } from './bodyPhotos'
 import { describeChanges } from './ai/photoCompare'
+import {
+  ensureLastWeekReport, getReport, listReports, mondayOf, regenerateAnalysis, weekNumbers, type Report, type WeekNumbers,
+} from './reports'
 import { getMessages, listConversations, retryLastMessage, sendCoachMessage, type CoachMessage, type Conversation } from './ai/coach'
 
 /**
@@ -405,4 +408,38 @@ export async function describeChangesApi(input: { beforeIds: string[]; afterIds:
     beforeLabels: before.labels,
     afterLabels: after.labels,
   })
+}
+
+// ── Relatórios semanais ──────────────────────────────────────────────────────
+
+export type { Report, WeekNumbers }
+
+/** Relatórios salvos, do mais novo para o mais antigo. */
+export async function loadReports(): Promise<Report[]> {
+  return listReports(await getDb())
+}
+
+export async function loadReport(weekStart: Day): Promise<Report | null> {
+  return getReport(await getDb(), weekStart)
+}
+
+/** Gera (de novo) a análise da IA do relatório. Lança AiError (ver AI_ERROR_TEXT). */
+export async function generateAnalysisApi(weekStart: Day): Promise<string> {
+  return write((db) => regenerateAnalysis(db, weekStart))
+}
+
+/** Números da semana corrente (aberta), só para mostrar: nada é salvo. */
+export async function currentWeekNumbers(): Promise<{ weekStart: Day; numbers: WeekNumbers }> {
+  const db = await getDb()
+  const weekStart = mondayOf(todayIn())
+  return { weekStart, numbers: await weekNumbers(db, weekStart) }
+}
+
+/** Ao abrir o app: cria o relatório da última semana fechada, se faltar. Erros só vão para o log. */
+export async function ensureReportsOnOpen(): Promise<void> {
+  try {
+    await write((db) => ensureLastWeekReport(db))
+  } catch (e) {
+    console.error(e)
+  }
 }
