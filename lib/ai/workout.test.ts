@@ -4,8 +4,8 @@ import { createTestDb } from '@/test/db'
 import { saveGoal, saveProfile, type Profile } from '@/lib/profile'
 import { addWeight } from '@/lib/body'
 import { ValidationError } from '@/lib/validate'
-import { createPlan, getActivePlan } from '@/lib/training'
-import { estimateSeconds, generatePlan, normalizeWorkoutPlan } from './workout'
+import { createPlan, finishSession, getActivePlan, getPlanDay, logSet, startSession } from '@/lib/training'
+import { applyAdjustments, estimateSeconds, generatePlan, normalizeWorkoutPlan, suggestAdjustments } from './workout'
 
 const now = new Date('2026-11-22T15:00:00Z')
 const profile: Profile = {
@@ -106,5 +106,99 @@ describe('generatePlan', () => {
     await expect(generatePlan(db, deps(model('{}')))).rejects.toBeInstanceOf(ValidationError)
     const db2 = await setup()
     await expect(generatePlan(db2, deps(model('não é json')))).rejects.toMatchObject({ code: 'bad_output' })
+  })
+})
+
+describe('ajustes sugeridos', () => {
+  const sup = { name: 'Supino', description: 'x', kind: 'musculacao' as const, muscles: ['peitoral'] }
+  const agach = { name: 'Agachamento', description: 'x', kind: 'musculacao' as const, muscles: ['quadriceps'] }
+  const at = (d: string) => new Date(`${d}T15:00:00Z`)
+
+  // Supino: 2 sessões, RPE 6. Agachamento: 2 sessões, RPE 9. Descanso médio ≥ 1 dia.
+  async function withHistory() {
+    const db = await setup()
+    await createPlan(db, {
+      name: 'Plano A', origin: 'ia', notes: 'nota',
+      items: [
+        { weekday: 1, exercise: sup, sets: 3, reps: 10, restS: 60, loadKg: 20 },
+        { weekday: 1, exercise: agach, sets: 3, reps: 10, restS: 90, loadKg: 40 },
+      ],
+    })
+    const [s, a] = await getPlanDay(db, 1)
+    for (const [day, rpeS, rpeA] of [['2026-11-16', 6, 9], ['2026-11-19', 6, 9]] as const) {
+      const sid = await startSession(db, { now: at(day) })
+      await logSet(db, sid, { exerciseId: s.exercise.id, setNo: 1, reps: 10, loadKg: 20, rpe: rpeS })
+      await logSet(db, sid, { exerciseId: a.exercise.id, setNo: 1, reps: 10, loadKg: 40, rpe: rpeA })
+      await finishSession(db, sid, { durationMin: 40, rpe: 7 }, at(day))
+    }
+    return { db, s, a }
+  }
+  const adj = (planItemId: string, field: string, from: number, to: number) => ({ planItemId, field, from, to, reason: 'motivo' })
+  const suggest = (db: Awaited<ReturnType<typeof setup>>, changes: unknown[]) =>
+    suggestAdjustments(db, deps(model(JSON.stringify({ summary: 'Resumo', changes }))))
+
+  it('sem plano ativo: ValidationError', async () => {
+    const db = await setup()
+    await expect(suggestAdjustments(db, deps(model('{}')))).rejects.toThrow('Crie um plano primeiro')
+  })
+
+  it('aceita +10 %, descarta +30 % e aumento em exercício com RPE médio ≥ 8', async () => {
+    const { db, s, a } = await withHistory()
+    const r = await suggest(db, [
+      adj(s.id, 'loadKg', 20, 22),
+      adj(s.id, 'reps', 10, 11),
+      adj(a.id, 'loadKg', 40, 42), // RPE 9
+    ])
+    expect(r.changes.map((c) => `${c.planItemId === s.id ? 's' : 'a'}:${c.field}`)).toEqual(['s:loadKg', 's:reps'])
+    const r2 = await suggest(db, [adj(s.id, 'loadKg', 20, 26)])
+    expect(r2.changes).toEqual([])
+    expect(r2.summary).toBe('Resumo')
+    const usage = await db.query<{ feature: string }>(`select feature from ai_usage`)
+    expect(usage.every((u) => u.feature === 'workout_adjust')).toBe(true)
+  })
+
+  it('reduções em exercício com RPE alto passam; ids/campos desconhecidos e from errado são descartados', async () => {
+    const { db, s, a } = await withHistory()
+    const r = await suggest(db, [
+      adj(a.id, 'loadKg', 40, 36),
+      adj('nao-existe', 'loadKg', 20, 21),
+      adj(s.id, 'cadencia', 1, 2),
+      adj(s.id, 'loadKg', 25, 26), // from ≠ atual
+      adj(s.id, 'restS', 60, 50), // reduzir descanso > 10 %
+      adj(s.id, 'restS', 60, 90), // mais descanso: livre
+    ])
+    expect(r.changes.map((c) => [c.field, c.to])).toEqual([['loadKg', 36], ['restS', 90]])
+  })
+
+  it('menos de 2 sessões ou pouco descanso: nenhum aumento', async () => {
+    const db = await setup()
+    await createPlan(db, { name: 'P', origin: 'manual', items: [{ weekday: 1, exercise: sup, sets: 3, reps: 10, loadKg: 20 }] })
+    const [s] = await getPlanDay(db, 1)
+    const sid = await startSession(db, { now: at('2026-11-19') })
+    await logSet(db, sid, { exerciseId: s.exercise.id, setNo: 1, reps: 10, loadKg: 20, rpe: 5 })
+    await finishSession(db, sid, { durationMin: 30, rpe: 5 }, at('2026-11-19'))
+    expect((await suggest(db, [adj(s.id, 'loadKg', 20, 22)])).changes).toEqual([])
+    // duas sessões em dias seguidos: restDaysAvg = 0
+    const sid2 = await startSession(db, { now: at('2026-11-20') })
+    await logSet(db, sid2, { exerciseId: s.exercise.id, setNo: 1, reps: 10, loadKg: 20, rpe: 5 })
+    await finishSession(db, sid2, { durationMin: 30, rpe: 5 }, at('2026-11-20'))
+    const r = await suggest(db, [adj(s.id, 'loadKg', 20, 22), adj(s.id, 'loadKg', 20, 18)])
+    expect(r.changes.map((c) => c.to)).toEqual([18])
+  })
+
+  it('applyAdjustments cria plano novo ativo; o antigo continua no banco', async () => {
+    const { db, s } = await withHistory()
+    const before = await getActivePlan(db)
+    const id = await applyAdjustments(db, [adj(s.id, 'loadKg', 20, 22) as never], now)
+    const after = await getActivePlan(db)
+    expect(after?.id).toBe(id)
+    expect(after?.id).not.toBe(before?.id)
+    expect(after?.name).toBe('Plano A (ajustado 22/11)')
+    expect(after?.origin).toBe('ia')
+    expect(after?.items.map((i) => i.loadKg)).toEqual([22, 40])
+    const plans = await db.query<{ id: string; active: boolean }>(`select id, active from workout_plans order by created_at`)
+    expect(plans).toHaveLength(2)
+    expect(plans.filter((p) => p.active)).toHaveLength(1)
+    await expect(applyAdjustments(db, [adj(s.id, 'loadKg', 20, 30) as never], now)).rejects.toBeInstanceOf(ValidationError)
   })
 })

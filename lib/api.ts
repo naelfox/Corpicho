@@ -23,7 +23,7 @@ import {
   createPlan, deleteSet, discardSession, finishSession, getActivePlan, getOpenSession, logActivity, logSet, recentSessions,
   startSession, type ExerciseKind, type OpenSession, type Plan, type PlanItem, type RecentSession, type SetInput,
 } from './training'
-import { generatePlan, type PlanDraft } from './ai/workout'
+import { applyAdjustments, generatePlan, suggestAdjustments, type Adjustment, type AdjustmentSuggestion, type PlanDraft } from './ai/workout'
 import { deleteBodyPhoto, getBodyPhotos, photoSessions, storeBodyPhoto, type Angle, type PhotoSession } from './bodyPhotos'
 import { describeChanges } from './ai/photoCompare'
 import {
@@ -286,7 +286,7 @@ export async function loadEvolutionSummary(): Promise<{ metric: Metric; delta: n
 
 // ── Treino ───────────────────────────────────────────────────────────────────
 
-export type { ExerciseKind, OpenSession, Plan, PlanDraft, PlanItem, RecentSession }
+export type { Adjustment, AdjustmentSuggestion, ExerciseKind, OpenSession, Plan, PlanDraft, PlanItem, RecentSession }
 
 export type TrainingData = {
   plan: Plan | null
@@ -306,6 +306,16 @@ export async function loadTraining(): Promise<TrainingData> {
 /** Pede um plano à IA a partir do perfil (lança AiError/ValidationError). Nada é salvo. */
 export async function generatePlanDraft(): Promise<PlanDraft> {
   return generatePlan(await getDb())
+}
+
+/** Pede à IA ajustes pequenos no plano ativo (lança AiError/ValidationError). Nada é salvo. */
+export async function suggestAdjustmentsApi(): Promise<AdjustmentSuggestion> {
+  return suggestAdjustments(await getDb())
+}
+
+/** Aplica os ajustes aceitos como nova versão do plano (o anterior fica no histórico). */
+export async function applyAdjustmentsApi(changes: Adjustment[]): Promise<string> {
+  return write((db) => applyAdjustments(db, changes))
 }
 
 /** Salva o plano (vira o ativo; o anterior fica no histórico). */

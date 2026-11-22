@@ -368,7 +368,7 @@ export async function recentSessions(db: Db, limit = 5): Promise<RecentSession[]
 
 export type TrainingStats = {
   sessions: number
-  byExercise: { name: string; sets: number; bestLoad: number | null; avgRpe: number | null; lastAt: string }[]
+  byExercise: { name: string; sets: number; sessions: number; bestLoad: number | null; avgRpe: number | null; lastAt: string }[]
   avgRpe: number | null
   restDaysAvg: number | null
 }
@@ -382,8 +382,9 @@ export async function trainingStats(db: Db, days: number, now: Date = new Date()
      where finished_at is not null and day >= $1 and day <= $2 order by day`,
     [from, to],
   )
-  const ex = await db.query<{ name: string; sets: string | number; best: string | number | null; rpe: string | number | null; last_at: string | Date }>(
-    `select e.name, count(*) as sets, max(ss.load_kg) as best, avg(ss.rpe) as rpe, max(s.finished_at) as last_at
+  const ex = await db.query<{ name: string; sets: string | number; sessions: string | number; best: string | number | null; rpe: string | number | null; last_at: string | Date }>(
+    `select e.name, count(*) as sets, count(distinct ss.session_id) as sessions, max(ss.load_kg) as best,
+            avg(coalesce(ss.rpe, s.rpe)) as rpe, max(s.finished_at) as last_at
      from session_sets ss
      join workout_sessions s on s.id = ss.session_id
      join exercises e on e.id = ss.exercise_id
@@ -404,6 +405,7 @@ export async function trainingStats(db: Db, days: number, now: Date = new Date()
     byExercise: ex.map((r) => ({
       name: r.name,
       sets: Number(r.sets),
+      sessions: Number(r.sessions),
       bestLoad: r.best === null ? null : Number(r.best),
       avgRpe: r.rpe === null ? null : round1(Number(r.rpe)),
       lastAt: new Date(r.last_at).toISOString(),

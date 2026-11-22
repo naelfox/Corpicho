@@ -128,7 +128,21 @@ async function hasAnyRecord(db: Db, weekStart: Day): Promise<boolean> {
 }
 
 /** Cria o relatório da última semana fechada (seg–dom) se faltar e houver algum registro nela. Idempotente. */
-export async function ensureLastWeekReport(db: Db, now: Date = new Date(), deps?: Deps): Promise<void> {
+export function ensureLastWeekReport(db: Db, now: Date = new Date(), deps?: Deps): Promise<void> {
+  const key = `${todayIn(now)}`
+  const running = inFlight.get(db)
+  if (running && running.key === key) return running.p
+  const p = ensureLastWeekReportRun(db, now, deps).finally(() => {
+    if (inFlight.get(db)?.p === p) inFlight.delete(db)
+  })
+  inFlight.set(db, { key, p })
+  return p
+}
+
+// Chamadas simultâneas (abertura do app) compartilham uma execução: sem chamada duplicada à IA.
+const inFlight = new WeakMap<Db, { key: string; p: Promise<void> }>()
+
+async function ensureLastWeekReportRun(db: Db, now: Date, deps?: Deps): Promise<void> {
   const weekStart = addDays(mondayOf(todayIn(now)), -7)
   if (await getReport(db, weekStart)) return
   if (!(await hasAnyRecord(db, weekStart))) return

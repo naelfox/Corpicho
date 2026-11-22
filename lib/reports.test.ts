@@ -95,6 +95,24 @@ describe('ensureLastWeekReport', () => {
     expect(list[0].numbers.weightDelta).toBe(-0.8)
   })
 
+  it('chamadas simultâneas compartilham uma execução (uma só chamada à IA)', async () => {
+    const db = await createTestDb()
+    await addWeight(db, 95, at('2026-11-09'))
+    const { MockLanguageModelV4 } = await import('ai/test')
+    const model = new MockLanguageModelV4({
+      doGenerate: {
+        content: [{ type: 'text', text: 'ok' }],
+        finishReason: { unified: 'stop', raw: 'stop' },
+        usage: { inputTokens: { total: 10, noCache: 10, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 5, text: 5, reasoning: 0 } },
+        warnings: [],
+      },
+    })
+    const deps = { model, modelId: 'gpt-5.4-mini', limitUsd: 5, now }
+    await Promise.all([ensureLastWeekReport(db, now, deps), ensureLastWeekReport(db, now, deps)])
+    expect(model.doGenerateCalls).toHaveLength(1)
+    expect(await listReports(db)).toHaveLength(1)
+  })
+
   it('regenerateAnalysis atualiza o texto', async () => {
     const db = await createTestDb()
     await addWeight(db, 95, at('2026-11-09'))

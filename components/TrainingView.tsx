@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Dumbbell, Footprints, Pencil, Play, Sparkles } from 'lucide-react'
 import {
-  generatePlanDraft, loadTraining, savePlan, startSessionApi, subscribe,
-  type PlanDraft, type TrainingData,
+  applyAdjustmentsApi, generatePlanDraft, loadTraining, savePlan, startSessionApi, subscribe, suggestAdjustmentsApi,
+  type Adjustment, type AdjustmentSuggestion, type PlanDraft, type TrainingData,
 } from '@/lib/api'
 import { AI_ERROR_TEXT, AiError } from '@/lib/ai/client'
 import { ValidationError } from '@/lib/validate'
@@ -80,6 +80,101 @@ function DraftSheet({ draft, onClose, onAdjust }: { draft: PlanDraft | null; onC
   )
 }
 
+const FIELD_LABEL: Record<Adjustment['field'], { label: string; unit: string }> = {
+  sets: { label: 'séries', unit: '' },
+  reps: { label: 'repetições', unit: '' },
+  loadKg: { label: 'carga', unit: ' kg' },
+  durationS: { label: 'duração', unit: ' s' },
+  restS: { label: 'descanso', unit: ' s' },
+}
+
+/** Sugestões da IA: cada mudança com o motivo; o usuário aceita ou recusa uma a uma. */
+function AdjustSheet({
+  result, names, onClose,
+}: { result: AdjustmentSuggestion | null; names: Record<string, string>; onClose: () => void }) {
+  const [off, setOff] = useState<Set<number>>(new Set())
+  const [busy, setBusy] = useState(false)
+  const changes = result?.changes ?? []
+  const chosen = changes.filter((_, i) => !off.has(i))
+
+  const apply = async () => {
+    setBusy(true)
+    try {
+      await applyAdjustmentsApi(chosen)
+      toast('Plano ajustado. O anterior ficou no histórico.')
+      onClose()
+    } catch (e) {
+      if (e instanceof ValidationError) toast(e.message, 'erro')
+      else {
+        console.error(e)
+        toast('Não deu para aplicar os ajustes.', 'erro')
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Sheet open={!!result} onOpenChange={(o) => !o && onClose()} title="Sugestões da IA">
+      {result && (
+        <>
+          <p className="flex items-center gap-1.5 text-[13px] font-medium text-[var(--accent-text)]">
+            <Sparkles aria-hidden size={15} /> Sugestões da IA
+          </p>
+          {changes.length === 0 && <h2 className="mt-1 text-[19px] font-semibold tracking-[-0.01em]">Nenhum ajuste recomendado agora</h2>}
+          {result.summary && <p className="mt-1 text-[14px] leading-snug text-[var(--muted)]">{result.summary}</p>}
+          {changes.length > 0 && (
+            <ul className="mt-4 flex flex-col gap-2">
+              {changes.map((c, i) => {
+                const f = FIELD_LABEL[c.field]
+                const id = `adj-${i}`
+                return (
+                  <li key={id} className="flex items-start gap-3 rounded-xl border border-[var(--line)] p-3">
+                    <input
+                      id={id}
+                      type="checkbox"
+                      checked={!off.has(i)}
+                      onChange={() =>
+                        setOff((o) => {
+                          const n = new Set(o)
+                          if (n.has(i)) n.delete(i)
+                          else n.add(i)
+                          return n
+                        })
+                      }
+                      className="mt-1 size-5 shrink-0 accent-[var(--accent)]"
+                    />
+                    <label htmlFor={id} className="min-w-0 flex-1">
+                      <span className="block text-[15px] font-medium">
+                        {names[c.planItemId] ?? 'Exercício'}: {f.label} {c.from} → {c.to}
+                        {f.unit}
+                      </span>
+                      {c.reason && <span className="mt-0.5 block text-[13px] leading-snug text-[var(--muted)]">{c.reason}</span>}
+                    </label>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          <p className="mt-4 text-[12px] leading-snug text-[var(--muted)]">
+            Sugestões automáticas, nada muda sem você aceitar. Não substituem a orientação de um profissional de educação física ou médico.
+          </p>
+          <div className="mt-5 flex gap-2">
+            <button type="button" onClick={onClose} className={btnGhost}>
+              {changes.length ? 'Fechar' : 'Ok'}
+            </button>
+            {changes.length > 0 && (
+              <button type="button" onClick={() => void apply()} disabled={busy || chosen.length === 0} className={`${btnPrimary} flex-1`}>
+                {busy ? 'Aplicando…' : 'Aplicar selecionadas'}
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </Sheet>
+  )
+}
+
 /** Aba Treino: o treino de hoje pelo plano ativo, a semana, registrar sessão ou atividade avulsa e o histórico. */
 export function TrainingView() {
   const [data, setData] = useState<TrainingData | null>(null)
@@ -90,6 +185,8 @@ export function TrainingView() {
   const [editor, setEditor] = useState<{ initial: PlanDraft | null; origin: 'ia' | 'manual'; key: number } | null>(null)
   const [draft, setDraft] = useState<PlanDraft | null>(null)
   const [generating, setGenerating] = useState(false)
+  const [suggesting, setSuggesting] = useState(false)
+  const [adjust, setAdjust] = useState<AdjustmentSuggestion | null>(null)
   const [starting, setStarting] = useState(false)
 
   const load = useCallback(async () => {
@@ -120,6 +217,21 @@ export function TrainingView() {
       }
     } finally {
       setGenerating(false)
+    }
+  }
+
+  const suggest = async () => {
+    setSuggesting(true)
+    try {
+      setAdjust(await suggestAdjustmentsApi())
+    } catch (e) {
+      if (e instanceof ValidationError) toast(e.message, 'erro')
+      else {
+        if (!(e instanceof AiError)) console.error(e)
+        toast(e instanceof AiError ? AI_ERROR_TEXT[e.code] : AI_ERROR_TEXT.failed, 'erro')
+      }
+    } finally {
+      setSuggesting(false)
     }
   }
 
@@ -296,6 +408,9 @@ export function TrainingView() {
           <button type="button" onClick={() => void generate()} disabled={generating} className={btnOutline}>
             <Sparkles aria-hidden size={17} /> {generating ? 'Montando seu plano…' : 'Gerar novo plano com IA'}
           </button>
+          <button type="button" onClick={() => void suggest()} disabled={suggesting} className={btnOutline}>
+            <Sparkles aria-hidden size={17} /> {suggesting ? 'Analisando seus treinos…' : 'Sugestões da IA'}
+          </button>
           <p className="text-center text-[12px] leading-snug text-[var(--muted)]">Ao salvar um plano novo, o atual fica guardado no histórico.</p>
         </div>
       )}
@@ -303,6 +418,12 @@ export function TrainingView() {
       {open && (
         <SessionSheet key={open.id} open={sessionOpen} onClose={() => setSessionOpen(false)} items={todayItems} session={open} />
       )}
+      <AdjustSheet
+        key={adjust ? 'open' : 'closed'}
+        result={adjust}
+        names={Object.fromEntries((plan?.items ?? []).map((i) => [i.id, i.exercise.name]))}
+        onClose={() => setAdjust(null)}
+      />
       <ActivitySheet open={activityOpen} onClose={() => setActivityOpen(false)} />
       <DraftSheet
         draft={draft}

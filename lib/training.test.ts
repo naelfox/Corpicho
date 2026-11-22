@@ -98,10 +98,21 @@ describe('treino: sessões', () => {
     expect(st.avgRpe).toBe(8)
     expect(st.restDaysAvg).toBeNull()
     expect(st.byExercise).toEqual([
-      { name: 'Supino com halteres', sets: 2, bestLoad: 14, avgRpe: 7.5, lastAt: expect.any(String) },
+      { name: 'Supino com halteres', sets: 2, sessions: 1, bestLoad: 14, avgRpe: 7.5, lastAt: expect.any(String) },
     ])
     const [r] = await recentSessions(db)
     expect(r).toMatchObject({ day: '2026-11-22', durationMin: 45, rpe: 8, exercises: ['Supino com halteres'] })
+  })
+
+  it('trainingStats: sem RPE nas séries, avgRpe usa o RPE da sessão', async () => {
+    const db = await createTestDb()
+    await createPlan(db, { name: 'A', origin: 'manual', items: [{ weekday: 0, exercise: supino, sets: 3, reps: 10 }] })
+    const [item] = await getPlanDay(db, 0)
+    const s = await startSession(db, { now })
+    await logSet(db, s, { exerciseId: item.exercise.id, setNo: 1, reps: 10, loadKg: 12 })
+    await logSet(db, s, { exerciseId: item.exercise.id, setNo: 2, reps: 10, loadKg: 12 })
+    await finishSession(db, s, { durationMin: 30, rpe: 9 })
+    expect((await trainingStats(db, 7, now)).byExercise[0].avgRpe).toBe(9)
   })
 
   it('sessão não finalizada não conta; descartar apaga', async () => {
@@ -142,7 +153,7 @@ describe('treino: sessões', () => {
     expect(st.sessions).toBe(3)
     expect(st.avgRpe).toBe(7.3)
     expect(st.restDaysAvg).toBe(2)
-    expect(st.byExercise).toEqual([{ name: 'Caminhada', sets: 3, bestLoad: null, avgRpe: 7.3, lastAt: expect.any(String) }])
+    expect(st.byExercise).toEqual([{ name: 'Caminhada', sets: 3, sessions: 3, bestLoad: null, avgRpe: 7.3, lastAt: expect.any(String) }])
     expect((await trainingStats(db, 28, now)).sessions).toBe(4)
   })
 })
