@@ -12,7 +12,7 @@ import { Dashboard } from '@/components/Dashboard'
 import { FoodView } from '@/components/FoodView'
 import { BodyView } from '@/components/BodyView'
 import { TrainingView } from '@/components/TrainingView'
-import { Placeholder } from '@/components/tabs/Placeholder'
+import { CoachView } from '@/components/CoachView'
 
 /** Enquanto o banco local abre: marca do app + spinner. */
 function Loading() {
@@ -29,17 +29,12 @@ function Loading() {
   )
 }
 
-const TEXT: Record<Exclude<Tab, 'inicio' | 'comer' | 'corpo' | 'treino'>, string> = {
-  coach: 'Converse com o coach sobre seus dados.',
-}
-
 function TabBody({ tab }: { tab: Tab }) {
   if (tab === 'inicio') return <Dashboard />
   if (tab === 'comer') return <FoodView />
   if (tab === 'corpo') return <BodyView />
   if (tab === 'treino') return <TrainingView />
-  const t = TABS.find((x) => x.id === tab)!
-  return <Placeholder key={tab} icon={t.icon} title={t.label} text={TEXT[tab as keyof typeof TEXT]} />
+  return <CoachView />
 }
 
 type Status = 'loading' | 'error' | 'onboarding' | 'ready'

@@ -24,6 +24,7 @@ import {
   startSession, type ExerciseKind, type OpenSession, type Plan, type PlanItem, type RecentSession, type SetInput,
 } from './training'
 import { generatePlan, type PlanDraft } from './ai/workout'
+import { getMessages, listConversations, retryLastMessage, sendCoachMessage, type CoachMessage, type Conversation } from './ai/coach'
 
 /**
  * As ações das telas, rodando no próprio aparelho contra o banco local.
@@ -333,4 +334,26 @@ export async function discardSessionApi(sessionId: string): Promise<void> {
 export async function logActivityApi(input: { name: string; kind: ExerciseKind; durationStr: string; rpe: number }): Promise<void> {
   const durationMin = Math.round(parseNum(input.durationStr, { min: 1, max: 600, label: 'Duração (min)' }))
   await write((db) => logActivity(db, { exerciseName: input.name, kind: input.kind, durationMin, rpe: input.rpe }))
+}
+
+// ── Coach IA ─────────────────────────────────────────────────────────────────
+
+export type { CoachMessage, Conversation }
+
+export async function loadConversations(): Promise<Conversation[]> {
+  return listConversations(await getDb())
+}
+
+export async function loadMessages(conversationId: string): Promise<CoachMessage[]> {
+  return getMessages(await getDb(), conversationId)
+}
+
+/** Salva a pergunta, chama a IA e salva a resposta (lança AiError; a pergunta fica salva). */
+export async function sendCoachApi(input: { conversationId?: string; text: string }): Promise<{ conversationId: string; reply: string }> {
+  return write((db) => sendCoachMessage(db, input))
+}
+
+/** Reenvia a última pergunta sem resposta, sem duplicá-la. */
+export async function retryCoachApi(conversationId: string): Promise<{ conversationId: string; reply: string }> {
+  return write((db) => retryLastMessage(db, conversationId))
 }
