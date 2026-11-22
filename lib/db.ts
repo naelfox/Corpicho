@@ -38,15 +38,27 @@ export async function initDb(pg: Pg): Promise<void> {
   )
 }
 
-/** Executa `fn` numa transação (o PGlite tem uma só conexão, então begin/commit via query é seguro). */
-export async function withTx<T>(db: Db, fn: () => Promise<T>): Promise<T> {
-  await db.query('begin')
-  try {
-    const r = await fn()
-    await db.query('commit')
-    return r
-  } catch (e) {
-    await db.query('rollback')
-    throw e
+const queues = new WeakMap<Db, Promise<unknown>>()
+
+/** Executa `fn` numa transação. Chamadas sobrepostas no mesmo banco são serializadas (uma só conexão). */
+export function withTx<T>(db: Db, fn: () => Promise<T>): Promise<T> {
+  const run = async () => {
+    await db.query('begin')
+    try {
+      const r = await fn()
+      await db.query('commit')
+      return r
+    } catch (e) {
+      try {
+        await db.query('rollback')
+      } catch {
+        // mantém o erro original
+      }
+      throw e
+    }
   }
+  const prev = queues.get(db) ?? Promise.resolve()
+  const next = prev.then(run, run)
+  queues.set(db, next.catch(() => undefined))
+  return next
 }
