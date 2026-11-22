@@ -114,6 +114,7 @@ create table body_photos (
   taken_at timestamptz not null,
   angle photo_angle not null,
   path text not null,
+  thumb_path text,
   created_at timestamptz not null default now()
 );
 

@@ -8,7 +8,9 @@ import {
 } from '@/lib/api'
 import { ANGLES } from '@/lib/bodyPhotos'
 import { todayIn, type Day } from '@/lib/dates'
-import { onPhotoLockChange, photosUnlocked, unlockPhotos, withPhotoLockPaused } from '@/lib/lock'
+import {
+  deviceHasScreenLock, holdPhotoLock, onPhotoLockChange, photosUnlocked, unlockPhotos, withPhotoLockPaused,
+} from '@/lib/lock'
 import { ConfirmRow } from './ConfirmRow'
 import { angleLabel, dayLabelBr, usePhoto, usePhotoCache, type PhotoCache } from './photoCache'
 import { PhotoCompare } from './PhotoCompare'
@@ -16,6 +18,8 @@ import { btnGhost, btnPrimary } from './Sheet'
 import { toast } from './Toast'
 
 const card = 'rounded-2xl bg-[var(--card)] p-4 shadow-[var(--shadow-card)]'
+/** Sessões mostradas por vez na grade (o resto com "Ver mais"). */
+const SESSIONS_PAGE = 6
 
 function readFile(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -97,6 +101,9 @@ function NewSession({ onDone }: { onDone: () => void }) {
   const { take, busy, input } = useCapture(next)
   const angle = ANGLES[step]
 
+  // Enquanto a sessão guiada está aberta, o prazo de 5 minutos do desbloqueio fica parado.
+  useEffect(() => holdPhotoLock(), [])
+
   return (
     <section className={`${card} anim-enter-up flex flex-col gap-4`} aria-label="Nova sessão de fotos">
       <div className="flex items-center gap-2">
@@ -145,7 +152,7 @@ function Viewer({
   cache,
   onClose,
 }: {
-  photo: { id: string; path: string; day: Day; angle: Angle }
+  photo: { id: string; path: string; thumbPath: string | null; day: Day; angle: Angle }
   cache: PhotoCache
   onClose: () => void
 }) {
@@ -160,9 +167,10 @@ function Viewer({
 
   const remove = async () => {
     try {
-      await deleteBodyPhotoApi(photo.id)
-      cache.forget(photo.path)
-      toast('Foto apagada.')
+      const { fileRemoved } = await deleteBodyPhotoApi(photo.id)
+      cache.forget(photo.path, photo.thumbPath)
+      if (fileRemoved) toast('Foto apagada.')
+      else toast('A foto saiu da lista, mas o arquivo não pôde ser apagado do aparelho.', 'erro')
       onClose()
     } catch (e) {
       console.error(e)
@@ -201,7 +209,8 @@ function Viewer({
 function Unlocked() {
   const [sessions, setSessions] = useState<PhotoSession[] | null>(null)
   const [mode, setMode] = useState<'lista' | 'nova' | 'comparar'>('lista')
-  const [open, setOpen] = useState<{ id: string; path: string; day: Day; angle: Angle } | null>(null)
+  const [open, setOpen] = useState<{ id: string; path: string; thumbPath: string | null; day: Day; angle: Angle } | null>(null)
+  const [shown, setShown] = useState(SESSIONS_PAGE)
   const cache = usePhotoCache()
   const today = todayIn()
   const { take, busy, input } = useCapture(() => toast('Foto salva.'))
@@ -258,7 +267,7 @@ function Unlocked() {
         </section>
       )}
 
-      {sessions?.map((s) => (
+      {sessions?.slice(0, shown).map((s) => (
         <section key={s.day} className={card} aria-label={`Sessão de ${dayLabelBr(s.day)}`}>
           <p className="mb-2.5 text-[14px] font-semibold">
             {s.day === today ? 'Hoje' : dayLabelBr(s.day)}
@@ -275,7 +284,7 @@ function Unlocked() {
                       aria-label={`Ver ${a.label}`}
                       className="aspect-[3/4] overflow-hidden rounded-xl bg-[var(--track)] active:scale-[0.97]"
                     >
-                      <Thumb path={p.path} alt={a.label} cache={cache} />
+                      <Thumb path={p.thumbPath ?? p.path} alt={a.label} cache={cache} />
                     </button>
                   ) : s.day === today ? (
                     <button
@@ -300,6 +309,16 @@ function Unlocked() {
         </section>
       ))}
 
+      {sessions && sessions.length > shown && (
+        <button
+          type="button"
+          onClick={() => setShown((n) => n + SESSIONS_PAGE)}
+          className={`${btnGhost} w-full border border-[var(--line)]`}
+        >
+          Ver mais
+        </button>
+      )}
+
       {input}
       {open && <Viewer photo={open} cache={cache} onClose={() => setOpen(null)} />}
     </div>
@@ -310,8 +329,14 @@ function Unlocked() {
 export function PhotosView() {
   const [unlocked, setUnlocked] = useState(() => photosUnlocked())
   const [asking, setAsking] = useState(false)
+  const [screenLock, setScreenLock] = useState(true)
 
   useEffect(() => onPhotoLockChange(setUnlocked), [])
+  useEffect(() => {
+    deviceHasScreenLock()
+      .then(setScreenLock)
+      .catch(() => setScreenLock(true))
+  }, [])
 
   const unlock = async () => {
     setAsking(true)
@@ -334,12 +359,14 @@ export function PhotosView() {
       <span className="grid size-14 place-items-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent-text)]">
         <Lock aria-hidden size={26} strokeWidth={1.75} />
       </span>
-      <p className="text-[17px] font-semibold">Fotos protegidas</p>
+      <p className="text-[17px] font-semibold">{screenLock ? 'Fotos protegidas' : 'Celular sem bloqueio de tela'}</p>
       <p className="max-w-xs text-[14px] leading-snug text-[var(--muted)]">
-        Suas fotos do corpo ficam só neste aparelho. Desbloqueie com a digital, o rosto ou a senha do celular.
+        {screenLock
+          ? 'Suas fotos do corpo ficam só neste aparelho. Desbloqueie com a digital, o rosto ou a senha do celular.'
+          : 'Este celular não tem bloqueio de tela, então não há como proteger as fotos. Configure um bloqueio de tela no celular para proteger as fotos.'}
       </p>
       <button type="button" onClick={() => void unlock()} disabled={asking} className={`${btnPrimary} mt-1`}>
-        Desbloquear
+        {screenLock ? 'Desbloquear' : 'Abrir mesmo assim'}
       </button>
     </section>
   )

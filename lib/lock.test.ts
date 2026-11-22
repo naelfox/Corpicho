@@ -36,4 +36,47 @@ describe('bloqueio das fotos', () => {
     lock.background()
     expect(lock.isUnlocked()).toBe(false)
   })
+
+  it('o prazo de 5 minutos fica parado durante a sessão/câmera (hold) e volta a contar ao soltar', async () => {
+    vi.useFakeTimers()
+    try {
+      let t = 0
+      const lock = createLock({ authenticate: async () => true, now: () => t })
+      await lock.unlock()
+      t += 4 * 60_000
+      vi.advanceTimersByTime(4 * 60_000)
+      const release = lock.hold()
+      t += 10 * 60_000
+      vi.advanceTimersByTime(10 * 60_000)
+      expect(lock.isUnlocked()).toBe(true)
+      lock.background()
+      expect(lock.isUnlocked()).toBe(true)
+      release()
+      expect(lock.isUnlocked()).toBe(true)
+      t += 59_000
+      vi.advanceTimersByTime(59_000)
+      expect(lock.isUnlocked()).toBe(true)
+      t += 2_000
+      vi.advanceTimersByTime(2_000)
+      expect(lock.isUnlocked()).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('timer expirado bloqueia e avisa', async () => {
+    vi.useFakeTimers()
+    try {
+      let t = 0
+      const lock = createLock({ authenticate: async () => true, now: () => t })
+      const seen: boolean[] = []
+      lock.subscribe((u) => seen.push(u))
+      await lock.unlock()
+      t += UNLOCK_MS
+      vi.advanceTimersByTime(UNLOCK_MS)
+      expect(seen).toEqual([true, false])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

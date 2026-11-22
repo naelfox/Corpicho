@@ -370,25 +370,29 @@ export async function loadPhotoSessions(): Promise<PhotoSession[]> {
 }
 
 /**
- * Foto do corpo de um ângulo: câmera (ou `fromDataUrl`, do seletor de arquivo no navegador), reduzida para
- * ≤1600 px JPEG 0.85 e guardada na área privada. Cancelado → null.
+ * Foto do corpo de um ângulo: câmera (ou `fromDataUrl`, do seletor de arquivo no navegador), guardada na área
+ * privada em ≤1600 px JPEG 0.85, mais uma miniatura de ≤320 px JPEG 0.7 para a grade. Cancelado → null.
  */
 export async function takeBodyPhoto(angle: Angle, fromDataUrl?: string): Promise<string | null> {
   const { takePhoto, resizeForAi, savePrivate, deletePrivate } = await photos()
   const original = fromDataUrl ?? (await takePhoto())?.dataUrl
   if (!original) return null
-  const path = await savePrivate(await resizeForAi(original, 1600, 0.85), 'body')
+  const saved: string[] = []
   try {
-    return await write((db) => addBodyPhoto(db, { angle, path }))
+    const path = await savePrivate(await resizeForAi(original, 1600, 0.85), 'body')
+    saved.push(path)
+    const thumbPath = await savePrivate(await resizeForAi(original, 320, 0.7), 'body')
+    saved.push(thumbPath)
+    return await write((db) => addBodyPhoto(db, { angle, path, thumbPath }))
   } catch (e) {
-    await deletePrivate(path).catch(() => {})
+    await Promise.all(saved.map((p) => deletePrivate(p).catch(() => {})))
     throw e
   }
 }
 
-/** Apaga a foto (registro e arquivo). */
-export async function deleteBodyPhotoApi(id: string): Promise<void> {
-  await write((db) => deleteBodyPhoto(db, id))
+/** Apaga a foto (registro, arquivo e miniatura). `fileRemoved: false` → o arquivo ficou no aparelho. */
+export async function deleteBodyPhotoApi(id: string): Promise<{ fileRemoved: boolean }> {
+  return write((db) => deleteBodyPhoto(db, id))
 }
 
 const ddmmyyyy = (day: Day) => day.split('-').reverse().join('/')

@@ -12,7 +12,7 @@ describe('fotos do corpo', () => {
 
   it('photoSessions agrupa os 3 ângulos do mesmo dia (fuso de São Paulo), mais recente primeiro', async () => {
     const db = await createTestDb()
-    const f = await addBodyPhoto(db, { angle: 'frente', path: 'body/f.jpg', at: d('2026-11-10T12:00:00Z') })
+    const f = await addBodyPhoto(db, { angle: 'frente', path: 'body/f.jpg', thumbPath: 'body/f-t.jpg', at: d('2026-11-10T12:00:00Z') })
     const l = await addBodyPhoto(db, { angle: 'lado', path: 'body/l.jpg', at: d('2026-11-10T12:01:00Z') })
     // 01:00 UTC do dia 11 ainda é dia 10 em São Paulo
     const c = await addBodyPhoto(db, { angle: 'costas', path: 'body/c.jpg', at: d('2026-11-11T01:00:00Z') })
@@ -21,11 +21,11 @@ describe('fotos do corpo', () => {
     const s = await photoSessions(db)
     expect(s.map((x) => x.day)).toEqual(['2026-11-20', '2026-11-10'])
     expect(s[1].photos).toEqual({
-      frente: { id: f, path: 'body/f.jpg' },
-      lado: { id: l, path: 'body/l.jpg' },
-      costas: { id: c, path: 'body/c.jpg' },
+      frente: { id: f, path: 'body/f.jpg', thumbPath: 'body/f-t.jpg' },
+      lado: { id: l, path: 'body/l.jpg', thumbPath: null },
+      costas: { id: c, path: 'body/c.jpg', thumbPath: null },
     })
-    expect(s[0].photos.frente).toEqual({ id: n, path: 'body/n.jpg' })
+    expect(s[0].photos.frente).toEqual({ id: n, path: 'body/n.jpg', thumbPath: null })
     expect(s[0].photos.lado).toBeUndefined()
     expect(s[0].photos.costas).toBeUndefined()
   })
@@ -36,7 +36,7 @@ describe('fotos do corpo', () => {
     const b = await addBodyPhoto(db, { angle: 'frente', path: 'body/b.jpg', at: d('2026-11-10T13:00:00Z') })
     const s = await photoSessions(db)
     expect(s).toHaveLength(1)
-    expect(s[0].photos.frente).toEqual({ id: b, path: 'body/b.jpg' })
+    expect(s[0].photos.frente).toEqual({ id: b, path: 'body/b.jpg', thumbPath: null })
   })
 
   it('ângulo inválido e path vazio são recusados', async () => {
@@ -52,23 +52,37 @@ describe('fotos do corpo', () => {
     expect(await getBodyPhotos(db, [])).toEqual([])
   })
 
-  it('deleteBodyPhoto apaga o registro e o arquivo', async () => {
+  it('deleteBodyPhoto apaga o registro, a foto e a miniatura', async () => {
     const db = await createTestDb()
-    const id = await addBodyPhoto(db, { angle: 'lado', path: 'body/l.jpg' })
+    const id = await addBodyPhoto(db, { angle: 'lado', path: 'body/l.jpg', thumbPath: 'body/l-t.jpg' })
     const removed: string[] = []
-    await deleteBodyPhoto(db, id, { removeFile: async (p) => void removed.push(p) })
-    expect(removed).toEqual(['body/l.jpg'])
+    const r = await deleteBodyPhoto(db, id, { removeFile: async (p) => void removed.push(p) })
+    expect(r).toEqual({ fileRemoved: true })
+    expect(removed).toEqual(['body/l.jpg', 'body/l-t.jpg'])
+    expect(await photoSessions(db)).toEqual([])
+  })
+
+  it('deleteBodyPhoto avisa quando o arquivo não pôde ser apagado (erro real)', async () => {
+    const db = await createTestDb()
+    const id = await addBodyPhoto(db, { angle: 'lado', path: 'body/l.jpg', thumbPath: 'body/l-t.jpg' })
+    const r = await deleteBodyPhoto(db, id, {
+      removeFile: async () => {
+        throw new Error('Permission denied')
+      },
+    })
+    expect(r).toEqual({ fileRemoved: false })
     expect(await photoSessions(db)).toEqual([])
   })
 
   it('deleteBodyPhoto apaga o registro mesmo se o arquivo já não existir', async () => {
     const db = await createTestDb()
     const id = await addBodyPhoto(db, { angle: 'lado', path: 'body/l.jpg' })
-    await deleteBodyPhoto(db, id, {
+    const r = await deleteBodyPhoto(db, id, {
       removeFile: async () => {
         throw new Error('File does not exist')
       },
     })
+    expect(r).toEqual({ fileRemoved: true })
     expect(await photoSessions(db)).toEqual([])
   })
 })
