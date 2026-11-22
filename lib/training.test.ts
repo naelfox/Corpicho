@@ -124,6 +124,16 @@ describe('treino: sessões', () => {
     expect(await getOpenSession(db, now)).toBeNull()
   })
 
+  it('treino aberto antes da meia-noite continua aberto (até 18 h)', async () => {
+    const db = await createTestDb()
+    const night = new Date('2026-11-22T02:30:00Z') // 21/11, 23:30 em São Paulo
+    const s = await startSession(db, { now: night })
+    const after = new Date('2026-11-22T03:30:00Z') // 22/11, 00:30
+    expect((await getOpenSession(db, after))?.id).toBe(s)
+    expect((await getOpenSession(db, new Date(night.getTime() + 17.5 * 3600_000)))?.id).toBe(s)
+    expect(await getOpenSession(db, new Date(night.getTime() + 19 * 3600_000))).toBeNull()
+  })
+
   it('finishSession valida RPE e duração', async () => {
     const db = await createTestDb()
     const s = await startSession(db, { now })

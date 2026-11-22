@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createTestDb } from '@/test/db'
-import type { Db } from '@/lib/db'
+import { PGlite } from '@electric-sql/pglite'
+import { initDb, wrap, type Db } from '@/lib/db'
+import { SCHEMA } from '@/lib/schema'
 
 let db: Db
 beforeEach(async () => {
@@ -45,5 +47,26 @@ describe('schema', () => {
       db.query(`insert into meal_items (meal_id,name,grams,kcal,protein_g,carbs_g,fat_g,source) values ($1,'x',0,0,0,0,0,'manual')`, [meal.id]),
     ).rejects.toThrow()
     await expect(db.query(`insert into body_measurements (measured_at,region,cm) values (now(),'cintura',400)`)).rejects.toThrow()
+  })
+
+  it('banco antigo (schema da Task 2) migra para o mesmo schema de um banco novo', async () => {
+    // Task 2: sem body_photos.thumb_path, weekly_reports.analysis not null, schema_version 0.
+    const old = SCHEMA.replace(/\n\s*thumb_path text,/, '').replace(/analysis text,/, 'analysis text not null,')
+    expect(old).not.toBe(SCHEMA)
+    expect(old).not.toMatch(/thumb_path/)
+    const pgOld = new PGlite()
+    await pgOld.exec(`begin; ${old}; commit;`)
+    await pgOld.exec(`create table app_meta (key text primary key, value text not null)`)
+    await pgOld.exec(`insert into app_meta values ('schema_version', '0')`)
+    await initDb(pgOld)
+    const cols = (d: Db) =>
+      d.query(
+        `select table_name, column_name, data_type, is_nullable, column_default from information_schema.columns
+         where table_schema = 'public' order by table_name, column_name`,
+      )
+    expect(await cols(wrap(pgOld))).toEqual(await cols(db))
+    const [{ value }] = await wrap(pgOld).query<{ value: string }>(`select value from app_meta where key = 'schema_version'`)
+    const [{ value: fresh }] = await db.query<{ value: string }>(`select value from app_meta where key = 'schema_version'`)
+    expect(value).toBe(fresh)
   })
 })

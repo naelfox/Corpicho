@@ -300,12 +300,17 @@ export type OpenSession = {
   sets: { id: string; exerciseId: string; setNo: number; reps: number | null; loadKg: number | null; durationS: number | null }[]
 }
 
-/** O treino de hoje começado e ainda não concluído (o mais recente), com as séries já marcadas. */
+/**
+ * O treino começado e ainda não concluído (o mais recente), com as séries já marcadas: o de hoje ou um começado
+ * nas últimas 18 h (treino da noite que passou da meia-noite não fica perdido).
+ */
 export async function getOpenSession(db: Db, now: Date = new Date()): Promise<OpenSession | null> {
   const [s] = await db.query<{ id: string; plan_id: string | null; started_at: string | Date | null; created_at: string | Date }>(
     `select id, plan_id, started_at, created_at from workout_sessions
-     where finished_at is null and day = $1 order by created_at desc limit 1`,
-    [todayIn(now)],
+     where finished_at is null
+       and (day = $1 or coalesce(started_at, created_at) between $2::timestamptz - interval '18 hours' and $2::timestamptz)
+     order by created_at desc limit 1`,
+    [todayIn(now), now.toISOString()],
   )
   if (!s) return null
   const sets = await db.query<{ id: string; exercise_id: string; set_no: number; reps: number | null; load_kg: string | number | null; duration_s: number | null }>(

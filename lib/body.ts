@@ -74,6 +74,15 @@ export async function latestByRegion(
   return out
 }
 
+/** Pesos registrados, do mais recente ao mais antigo (para conferir e apagar um errado). */
+export async function weightHistory(db: Db, limit = 60): Promise<{ id: string; kg: number; at: string }[]> {
+  const rows = await db.query<{ id: string; kg: string | number; measured_at: string | Date }>(
+    `select id, kg, measured_at from weights order by measured_at desc, created_at desc limit $1`,
+    [limit],
+  )
+  return rows.map((r) => ({ id: r.id, kg: Number(r.kg), at: iso(r.measured_at) }))
+}
+
 export async function regionHistory(db: Db, region: Region): Promise<{ id: string; cm: number; at: string }[]> {
   const rows = await db.query<{ id: string; cm: string | number; measured_at: string | Date }>(
     `select id, cm, measured_at from body_measurements where region = $1 order by measured_at desc, created_at desc`,

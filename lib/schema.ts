@@ -211,4 +211,6 @@ create table ai_usage (
 export const MIGRATIONS: string[] = [
   // 1: relatório semanal pode existir sem análise (IA indisponível)
   `alter table weekly_reports alter column analysis drop not null`,
+  // 2: miniatura das fotos do corpo (bancos criados antes dela não tinham a coluna)
+  `alter table body_photos add column if not exists thumb_path text`,
 ]

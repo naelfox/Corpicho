@@ -5,7 +5,7 @@ import { withTx } from './db'
 import { getGoal, getProfile, saveGoal, saveProfile, type Goal, type Profile } from './profile'
 import {
   addComposition, addMeasurement, addWeight, compositionHistory, currentComposition, deleteRecord, latestByRegion,
-  regionHistory, type CompMetric, type CompositionEntry, type Region,
+  regionHistory, weightHistory, type CompMetric, type CompositionEntry, type Region,
 } from './body'
 import { evolutionSummary, getSeries, type Metric, type Period, type Series, type Unit } from './series'
 import { getDashboard, type Dashboard } from './dashboard'
@@ -110,6 +110,16 @@ export async function loadDashboard(): Promise<Dashboard> {
 export async function saveWeight(kgStr: string): Promise<void> {
   const kg = parseNum(kgStr, { min: 20, max: 400, label: 'Peso' })
   await write((db) => addWeight(db, kg))
+}
+
+/** Pesos registrados, do mais recente ao mais antigo. */
+export async function loadWeightHistory(): Promise<{ id: string; kg: number; at: string }[]> {
+  return weightHistory(await getDb())
+}
+
+/** Apaga um peso registrado (ex.: digitado errado). Pesos nunca são editados. */
+export async function deleteWeightApi(id: string): Promise<void> {
+  await write((db) => deleteRecord(db, 'weights', id))
 }
 
 // ── IA ───────────────────────────────────────────────────────────────────────

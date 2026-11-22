@@ -5,7 +5,7 @@ import { withTx } from '@/lib/db'
 import type { Profile } from '@/lib/profile'
 import {
   REGIONS, addComposition, compositionHistory, addMeasurement, addWeight, bmi, currentComposition, deleteRecord, latestByRegion,
-  navyBodyFat, regionHistory,
+  navyBodyFat, regionHistory, weightHistory,
 } from '@/lib/body'
 
 const profile: Profile = {
@@ -30,6 +30,19 @@ describe('corpo', () => {
     expect(l.pescoco).toBeUndefined()
     const h = await regionHistory(db, 'cintura')
     expect(h.map((x) => x.cm)).toEqual([93, 95])
+  })
+
+  it('weightHistory do mais recente ao mais antigo; apagar um peso errado', async () => {
+    const db = await createTestDb()
+    await addWeight(db, 82.4, d('2026-11-01T12:00:00Z'))
+    await addWeight(db, 28, d('2026-11-15T12:00:00Z'))
+    const h = await weightHistory(db)
+    expect(h.map((x) => [x.kg, x.at])).toEqual([
+      [28, '2026-11-15T12:00:00.000Z'],
+      [82.4, '2026-11-01T12:00:00.000Z'],
+    ])
+    await deleteRecord(db, 'weights', h[0].id)
+    expect((await weightHistory(db)).map((x) => x.kg)).toEqual([82.4])
   })
 
   it('primeira medida tem delta null', async () => {
