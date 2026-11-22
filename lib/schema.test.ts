@@ -14,7 +14,7 @@ describe('schema', () => {
     await db.query(`insert into profile (birth_date, sex, height_cm, activity_level, fitness, experience, days_per_week, minutes_per_session, equipment, restrictions)
       values ('1990-01-01','m',175,1.4,'medio','iniciante',3,45,'{halteres}','nenhuma')`)
     await db.query(`insert into goals (start_weight_kg,target_weight_kg,kcal,protein_g,carbs_g,fat_g) values (90,80,2000,150,200,60)`)
-    const food = await one(`insert into foods (name,origin,kcal_100,protein_100,carbs_100,fat_100) values ('Arroz','taco',128,2.5,28,0.2) returning id`)
+    const food = await one(`insert into foods (name,origin,search,kcal_100,protein_100,carbs_100,fat_100) values ('Arroz','taco','arroz',128,2.5,28,0.2) returning id`)
     const meal = await one(`insert into meals (day,type) values ('2026-11-22','almoco') returning id`)
     await db.query(`insert into meal_items (meal_id,food_id,name,grams,kcal,protein_g,carbs_g,fat_g,source) values ($1,$2,'Arroz',100,128,2.5,28,0.2,'manual')`, [meal.id, food.id])
     await db.query(`insert into weights (measured_at,kg) values (now(),80)`)

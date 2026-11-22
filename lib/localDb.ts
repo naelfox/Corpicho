@@ -1,6 +1,7 @@
 'use client'
 
 import { initDb, wrap, type Db } from './db'
+import { seedTaco } from './foods'
 
 /**
  * O banco do app: PGlite (Postgres em WebAssembly) guardado no IndexedDB do WebView.
@@ -29,7 +30,9 @@ async function open(): Promise<Db> {
     fsBundle,
   })
   await initDb(pg)
-  return wrap(pg)
+  const db = wrap(pg)
+  await seedTaco(db)
+  return db
 }
 
 // arrayBuffer + compile em vez de compileStreaming: o servidor local do Capacitor

@@ -47,6 +47,7 @@ create table foods (
   id uuid primary key default gen_random_uuid(),
   name text not null check (char_length(name) between 1 and 120),
   origin food_origin not null,
+  search text not null,
   kcal_100 numeric not null check (kcal_100 >= 0 and kcal_100 <= 900),
   protein_100 numeric not null check (protein_100 >= 0),
   carbs_100 numeric not null check (carbs_100 >= 0),
