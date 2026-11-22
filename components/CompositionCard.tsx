@@ -28,14 +28,13 @@ export const COMP_LABEL: Record<CompMetric, { name: string; unit: string }> = {
 }
 const ORDER: CompMetric[] = ['weight_kg', 'bmi', 'body_fat_pct', 'muscle_kg', 'visceral_fat', 'water_pct']
 
-type Input = Exclude<CompMetric, 'bmi'>
-// IMC nunca é digitado: é calculado do peso e da altura.
+// IMC nunca é digitado (é calculado do peso e da altura); o peso entra pela folha "Registrar peso".
+type Input = Exclude<CompMetric, 'bmi' | 'weight_kg'>
 const METRICS: { id: Input; label: string }[] = [
   { id: 'body_fat_pct', label: '% de gordura' },
   { id: 'muscle_kg', label: 'Massa muscular (kg)' },
   { id: 'visceral_fat', label: 'Gordura visceral' },
   { id: 'water_pct', label: 'Água corporal (%)' },
-  { id: 'weight_kg', label: 'Peso (kg)' },
 ]
 const METHODS = ['Balança de bioimpedância', 'Adipômetro', 'DEXA', 'Outro'] as const
 type Method = (typeof METHODS)[number]
@@ -114,9 +113,6 @@ function CompositionSheet({ open, onClose }: { open: boolean; onClose: () => voi
           />
         )}
       </div>
-      {metric === 'weight_kg' && (
-        <p className="mt-3 text-[13px] leading-snug text-[var(--muted)]">O peso entra no seu histórico de peso.</p>
-      )}
       <div className="mt-5 flex gap-2">
         <button type="button" onClick={onClose} className={btnGhost}>
           Cancelar
