@@ -8,6 +8,7 @@ import { scaleFood, sumMacros, type Macros, type Per100 } from '@/lib/nutrition'
 import { ValidationError, parseNum } from '@/lib/validate'
 import { Segmented } from './Chips'
 import { MealTypePicker } from './MealTypePicker'
+import { MeasurePicker } from './MeasurePicker'
 import { NumberField } from './NumberField'
 import { Sheet, btnGhost, btnPrimary, fieldLabel } from './Sheet'
 import { toast } from './Toast'
@@ -321,6 +322,14 @@ export function AddFoodSheet({ open, onClose }: { open: boolean; onClose: () => 
             invalid={invalid}
             autoFocus
           />
+          <MeasurePicker
+            foodName={step.food.name}
+            grams={grams}
+            onGrams={(g) => {
+              setGrams(String(g))
+              setInvalid(false)
+            }}
+          />
           {preview && <MacroLine m={preview} className="mt-2" />}
           {footer}
         </div>
@@ -373,6 +382,14 @@ export function AddFoodSheet({ open, onClose }: { open: boolean; onClose: () => 
               placeholder="ex.: 80"
               invalid={invalid}
               autoFocus={!!name}
+            />
+            <MeasurePicker
+              foodName={name}
+              grams={grams}
+              onGrams={(g) => {
+                setGrams(String(g))
+                setInvalid(false)
+              }}
             />
           </div>
           {preview && <MacroLine m={preview} className="mt-2" />}

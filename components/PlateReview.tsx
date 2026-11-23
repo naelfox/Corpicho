@@ -11,6 +11,7 @@ import { ValidationError, parseNum } from '@/lib/validate'
 import { FoodSearch, MacroLine, loose, per100Of } from './AddFoodSheet'
 import { card } from './MealHistory'
 import { MealTypePicker } from './MealTypePicker'
+import { MeasurePicker } from './MeasurePicker'
 import { NumberField } from './NumberField'
 import { Sheet, btnGhost, btnPrimary, fieldLabel } from './Sheet'
 import { toast } from './Toast'
@@ -218,6 +219,15 @@ export function PlateReview({ photo, onDone, onCancel }: { photo: PlatePhoto; on
                   placeholder="ex.: 120"
                   invalid={invalid.has(r.key)}
                   autoFocus={!r.estimated && !r.grams}
+                />
+                <MeasurePicker
+                  key={r.name}
+                  foodName={r.name}
+                  grams={r.grams}
+                  onGrams={(g) => {
+                    update(r.key, { grams: String(g), estimated: false })
+                    setInvalid((s) => (s.has(r.key) ? new Set([...s].filter((k) => k !== r.key)) : s))
+                  }}
                 />
               </div>
               <MacroLine m={scaleFood(r.per100, loose(r.grams))} className="mt-2" />
