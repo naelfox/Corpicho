@@ -30,6 +30,7 @@ import {
   ensureLastWeekReport, getReport, listReports, mondayOf, regenerateAnalysis, weekNumbers, type Report, type WeekNumbers,
 } from './reports'
 import { addBurn, burnSummary, deleteBurn, listBurns, setBurnGoal, type Burn, type BurnSummary } from './burns'
+import { analyzeBurnText, type BurnItem } from './ai/burn'
 import { getMessages, listConversations, retryLastMessage, sendCoachMessage, type CoachMessage, type Conversation } from './ai/coach'
 
 /**
@@ -477,7 +478,7 @@ export async function ensureReportsOnOpen(): Promise<void> {
 
 // ── Gasto calórico ───────────────────────────────────────────────────────────
 
-export type { Burn, BurnSummary }
+export type { Burn, BurnItem, BurnSummary }
 
 /** Gasto por dia nos últimos `days` dias (7 ou 30), com a meta diária. */
 export async function loadBurnSummary(days: number): Promise<BurnSummary> {
@@ -493,6 +494,24 @@ export async function loadBurns(): Promise<Burn[]> {
 export async function saveBurn(input: { kcalStr: string; label?: string; day?: Day }): Promise<void> {
   const kcal = parseNum(input.kcalStr, { min: 1, max: 5000, label: 'Gasto' })
   await write((db) => addBurn(db, { day: input.day ?? todayIn(), kcal, label: input.label }))
+}
+
+/** Manda a descrição da atividade (digitada ou ditada) para a IA. Lança AiError. Nada é salvo aqui. */
+export async function analyzeBurnTextApi(text: string): Promise<BurnItem[]> {
+  return analyzeBurnText(await getDb(), text)
+}
+
+/** Anota vários gastos de uma vez (os conferidos da descrição), numa transação: ou entram todos, ou nenhum. */
+export async function saveBurns(items: { kcalStr: string; label: string }[], day: Day): Promise<void> {
+  const checked = items.map((i) => ({
+    kcal: parseNum(i.kcalStr, { min: 1, max: 5000, label: `Gasto de ${i.label || 'atividade'}` }),
+    label: i.label,
+  }))
+  await write((db) =>
+    withTx(db, async () => {
+      for (const c of checked) await addBurn(db, { day, kcal: c.kcal, label: c.label })
+    }),
+  )
 }
 
 export async function deleteBurnApi(id: string): Promise<void> {

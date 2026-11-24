@@ -16,6 +16,8 @@ Atalhos para o dia a dia:
   a confirmação já com a mesma refeição (café, almoço...) escolhida.
 - **Descrever o que comi** — escreva (ou dite pelo microfone do teclado) algo como "2 ovos mexidos e um pão francês":
   a IA separa os itens com as quantidades e você confere, ajusta e salva, como na foto do prato.
+- **Descrever o gasto** — no gasto calórico, em **Descrever**, escreva ou dite "corri 30 min e fiz 1 h de musculação":
+  a IA separa as atividades e estima as kcal pelo seu peso (ou usa o número do relógio, se você disser); confira e anote.
 - **Editar refeição** — em qualquer refeição salva (no dia ou no histórico), **Editar** abre os itens para mudar
   quantidade, trocar, tirar ou adicionar.
 - **Peso rápido** — no Início, o botão **Registrar** no cartão do peso abre o teclado numérico direto.

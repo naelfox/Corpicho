@@ -1,10 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
-import { ChevronRight, Flame, Plus, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ChevronRight, Flame, Mic, Plus, Trash2, X } from 'lucide-react'
 import {
-  deleteBurnApi, loadBurnSummary, loadBurns, saveBurn, saveBurnGoal, subscribe, type Burn, type BurnSummary,
+  analyzeBurnTextApi, deleteBurnApi, loadBurnSummary, loadBurns, saveBurn, saveBurnGoal, saveBurns, subscribe, type Burn,
+  type BurnItem, type BurnSummary,
 } from '@/lib/api'
+import { AI_ERROR_TEXT, AiError } from '@/lib/ai/client'
 import { addDays, todayIn } from '@/lib/dates'
 import { ValidationError } from '@/lib/validate'
 import { BarChart } from './BarChart'
@@ -185,6 +187,169 @@ function GoalRow({ goal }: { goal: number }) {
   )
 }
 
+type DescRow = { key: number; label: string; kcal: string; basis: BurnItem['basis']; lowConfidence: boolean }
+let descSeq = 0
+
+/**
+ * Descrever a atividade com as próprias palavras (ou ditando pelo microfone do teclado).
+ * A IA separa as atividades e estima as kcal; nada é anotado até conferir e tocar em "Anotar".
+ */
+function DescribeBurn({ onDone }: { onDone: () => void }) {
+  const [text, setText] = useState('')
+  const [rows, setRows] = useState<DescRow[] | null>(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
+  const [when, setWhen] = useState<'hoje' | 'ontem'>('hoje')
+  const [busy, setBusy] = useState(false)
+  const saving = useRef(false)
+
+  const analyze = async () => {
+    const t = text.trim()
+    if (!t || analyzing) return
+    setAnalyzing(true)
+    setNote(null)
+    try {
+      const items = await analyzeBurnTextApi(t)
+      setRows(
+        items.map((i) => ({ key: ++descSeq, label: i.label, kcal: String(i.kcal), basis: i.basis, lowConfidence: i.confidence === 'baixa' })),
+      )
+      if (items.length === 0) setNote('Não reconheci nenhuma atividade no que você escreveu.')
+    } catch (e) {
+      if (!(e instanceof AiError)) console.error(e)
+      const msg = e instanceof AiError ? AI_ERROR_TEXT[e.code] : AI_ERROR_TEXT.failed
+      setNote(msg)
+      toast(msg, 'erro')
+    } finally {
+      setAnalyzing(false)
+    }
+  }
+
+  const update = (key: number, patch: Partial<DescRow>) => setRows((rs) => rs && rs.map((r) => (r.key === key ? { ...r, ...patch } : r)))
+
+  const save = async () => {
+    if (!rows || rows.length === 0 || saving.current) return
+    saving.current = true
+    setBusy(true)
+    try {
+      const today = todayIn()
+      await saveBurns(
+        rows.map((r) => ({ kcalStr: r.kcal, label: r.label })),
+        when === 'hoje' ? today : addDays(today, -1),
+      )
+      toast(rows.length === 1 ? 'Gasto anotado.' : `${rows.length} gastos anotados.`)
+      onDone()
+    } catch (e) {
+      failed(e, 'Não deu para salvar o gasto.')
+    } finally {
+      saving.current = false
+      setBusy(false)
+    }
+  }
+
+  if (!rows) {
+    return (
+      <div>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={3}
+          maxLength={2000}
+          aria-label="O que você fez"
+          placeholder="Ex.: corri 30 minutos e depois fiz 1 hora de musculação"
+          className="w-full resize-none rounded-xl border border-[var(--line)] bg-[var(--bg)] px-3 py-2.5 text-[16px] leading-snug outline-none transition-[border-color] duration-150 placeholder:text-[var(--muted)]/60 focus:border-[var(--accent)]"
+        />
+        <p className="mt-2 flex items-start gap-1.5 text-[13px] leading-snug text-[var(--muted)]">
+          <Mic aria-hidden size={15} className="mt-px shrink-0" />
+          Prefere falar? Toque no microfone do teclado e dite. Se o relógio mostrou as calorias, diga o número.
+        </p>
+        {note && (
+          <p role="status" className="mt-3 rounded-xl bg-[var(--track)] px-3 py-2.5 text-[14px] leading-snug">
+            {note}
+          </p>
+        )}
+        <button type="button" onClick={() => void analyze()} disabled={!text.trim() || analyzing} className={`${btnPrimary} mt-4 w-full`}>
+          {analyzing ? 'Analisando…' : 'Analisar'}
+        </button>
+      </div>
+    )
+  }
+
+  const total = rows.reduce((a, r) => a + (Number(r.kcal.replace(',', '.')) || 0), 0)
+  return (
+    <div>
+      <p className="text-[14px] leading-snug text-[var(--muted)]">Confira cada atividade. Dá para mudar o nome e as kcal, ou tirar.</p>
+      {rows.length === 0 && note && (
+        <p role="status" className="mt-3 rounded-xl bg-[var(--track)] px-3 py-2.5 text-[14px] leading-snug">
+          {note}
+        </p>
+      )}
+      <ul className="mt-3 flex flex-col gap-3">
+        {rows.map((r) => (
+          <li key={r.key} className="rounded-xl border border-[var(--line)] p-3">
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={r.label}
+                onChange={(e) => update(r.key, { label: e.target.value })}
+                aria-label="Atividade"
+                maxLength={80}
+                className={`${textInput} h-11 flex-1`}
+              />
+              <button
+                type="button"
+                aria-label={`Tirar ${r.label}`}
+                onClick={() => setRows((rs) => rs && rs.filter((x) => x.key !== r.key))}
+                className="-mr-1 grid size-10 shrink-0 place-items-center rounded-lg text-[var(--muted)] active:scale-[0.92]"
+              >
+                <X aria-hidden size={18} />
+              </button>
+            </div>
+            <div className="mt-2">
+              <NumberField
+                label={
+                  <span className="flex items-center gap-2">
+                    Gasto
+                    <span className="rounded-full bg-[var(--src-estimated)]/15 px-2 py-0.5 text-[11px] font-semibold text-[var(--src-estimated)]">
+                      {r.basis === 'informado' ? 'informado' : 'estimado'}
+                    </span>
+                  </span>
+                }
+                value={r.kcal}
+                onChange={(v) => update(r.key, { kcal: v })}
+                unit="kcal"
+                decimals={0}
+              />
+            </div>
+            {r.lowConfidence && <p className="mt-1.5 text-[12px] text-[var(--muted)]">A IA não tem certeza desta. Confira.</p>}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-[14px]">
+        Total: <span className="font-semibold tabular-nums">{kcal(total)} kcal</span>
+      </p>
+      <div className="mt-3">
+        <Segmented
+          label="Dia"
+          options={[
+            { id: 'hoje', label: 'Hoje' },
+            { id: 'ontem', label: 'Ontem' },
+          ]}
+          value={when}
+          onChange={setWhen}
+        />
+      </div>
+      <div className="mt-4 flex gap-2">
+        <button type="button" onClick={() => setRows(null)} className={btnGhost}>
+          Descrever de novo
+        </button>
+        <button type="button" onClick={() => void save()} disabled={busy || rows.length === 0} className={`${btnPrimary} flex-1`}>
+          {busy ? 'Salvando…' : rows.length > 1 ? `Anotar ${rows.length} gastos` : 'Anotar gasto'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 /** Folha do gasto calórico: anotar, gráfico 7/30 dias contra a meta, meta e histórico. */
 export function BurnSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [period, setPeriod] = useState<7 | 30>(7)
@@ -194,6 +359,8 @@ export function BurnSheet({ open, onClose }: { open: boolean; onClose: () => voi
   const [when, setWhen] = useState<'hoje' | 'ontem'>('hoje')
   const [busy, setBusy] = useState(false)
   const [invalid, setInvalid] = useState(false)
+  const [mode, setMode] = useState<'numero' | 'descrever'>('numero')
+  const [describeKey, setDescribeKey] = useState(0)
 
   const save = async () => {
     setBusy(true)
@@ -217,51 +384,69 @@ export function BurnSheet({ open, onClose }: { open: boolean; onClose: () => voi
     <Sheet open={open} onOpenChange={(o) => !o && onClose()} title="Gasto calórico">
       <h2 className="mb-1 text-[19px] font-semibold tracking-[-0.01em]">Gasto calórico</h2>
       <p className="mb-4 text-[14px] leading-snug text-[var(--muted)]">
-        Anote o que gastou se mexendo (o número do relógio, da esteira ou do app de corrida).
+        Anote o que gastou se mexendo: o número do relógio, da esteira ou do app, ou descreva o que fez e a IA estima.
       </p>
 
-      <NumberField label="Quanto gastou" value={value} onChange={setValue} unit="kcal" decimals={0} placeholder="ex.: 350" invalid={invalid} />
-      <div className="mt-3">
-        <span className={fieldLabel}>O que foi (opcional)</span>
-        <div className="mb-2 flex flex-wrap gap-1.5">
-          {QUICK.map((q) => (
-            <button
-              key={q}
-              type="button"
-              onClick={() => setLabel(q)}
-              aria-pressed={label === q}
-              className={`h-9 rounded-full border px-3 text-[14px] transition-[background-color,border-color] duration-150 active:scale-[0.96] ${
-                label === q ? 'border-[var(--accent)] bg-[var(--accent-soft)] font-medium' : 'border-[var(--line)] text-[var(--muted)]'
-              }`}
-            >
-              {q}
-            </button>
-          ))}
-        </div>
-        <input
-          type="text"
-          value={label}
-          onChange={(e) => setLabel(e.target.value)}
-          aria-label="O que foi"
-          placeholder="ex.: Futebol"
-          maxLength={80}
-          className={textInput}
-        />
-      </div>
-      <div className="mt-3">
+      <div className="mb-4">
         <Segmented
-          label="Dia"
+          label="Como anotar"
           options={[
-            { id: 'hoje', label: 'Hoje' },
-            { id: 'ontem', label: 'Ontem' },
+            { id: 'numero', label: 'Digitar kcal' },
+            { id: 'descrever', label: 'Descrever' },
           ]}
-          value={when}
-          onChange={setWhen}
+          value={mode}
+          onChange={setMode}
         />
       </div>
-      <button type="button" onClick={() => void save()} disabled={!value.trim() || busy} className={`${btnPrimary} mt-4 w-full`}>
-        {busy ? 'Salvando…' : 'Anotar gasto'}
-      </button>
+
+      {mode === 'descrever' ? (
+        <DescribeBurn key={describeKey} onDone={() => setDescribeKey((k) => k + 1)} />
+      ) : (
+        <>
+          <NumberField label="Quanto gastou" value={value} onChange={setValue} unit="kcal" decimals={0} placeholder="ex.: 350" invalid={invalid} />
+          <div className="mt-3">
+            <span className={fieldLabel}>O que foi (opcional)</span>
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {QUICK.map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  onClick={() => setLabel(q)}
+                  aria-pressed={label === q}
+                  className={`h-9 rounded-full border px-3 text-[14px] transition-[background-color,border-color] duration-150 active:scale-[0.96] ${
+                    label === q ? 'border-[var(--accent)] bg-[var(--accent-soft)] font-medium' : 'border-[var(--line)] text-[var(--muted)]'
+                  }`}
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+            <input
+              type="text"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              aria-label="O que foi"
+              placeholder="ex.: Futebol"
+              maxLength={80}
+              className={textInput}
+            />
+          </div>
+          <div className="mt-3">
+            <Segmented
+              label="Dia"
+              options={[
+                { id: 'hoje', label: 'Hoje' },
+                { id: 'ontem', label: 'Ontem' },
+              ]}
+              value={when}
+              onChange={setWhen}
+            />
+          </div>
+          <button type="button" onClick={() => void save()} disabled={!value.trim() || busy} className={`${btnPrimary} mt-4 w-full`}>
+            {busy ? 'Salvando…' : 'Anotar gasto'}
+          </button>
+        </>
+      )}
 
       <div className="mt-6 mb-2 flex items-center justify-between gap-2">
         <h3 className="text-[13px] font-medium text-[var(--muted)]">Estou gastando o suficiente?</h3>
