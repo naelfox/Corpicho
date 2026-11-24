@@ -5,6 +5,7 @@ import { ChevronRight, Dumbbell, FileText, Plus } from 'lucide-react'
 import { loadDashboard, subscribe, type Dashboard as Data } from '@/lib/api'
 import { ValidationError } from '@/lib/validate'
 import type { Metric } from '@/lib/series'
+import { BurnCard } from './BurnView'
 import { CalorieRing } from './CalorieRing'
 import { LineChart } from './LineChart'
 import { MacroBars } from './MacroBars'
@@ -124,6 +125,8 @@ export function Dashboard() {
           <p className="text-[13px] text-[var(--muted)]">{workoutsThisWeek === 1 ? 'treino nesta semana' : 'treinos nesta semana'}</p>
         </div>
       </section>
+
+      <BurnCard />
 
       <section className={card} aria-label="Resumo da evolução">
         <p className="mb-2 text-[13px] font-medium text-[var(--muted)]">Evolução em 30 dias</p>

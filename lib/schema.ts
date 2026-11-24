@@ -206,6 +206,21 @@ create table ai_usage (
   cost_usd numeric not null default 0,
   created_at timestamptz not null default now()
 );
+
+create table calorie_burns (
+  id uuid primary key default gen_random_uuid(),
+  day date not null,
+  kcal int not null check (kcal between 1 and 5000),
+  label text not null default '' check (char_length(label) <= 80),
+  created_at timestamptz not null default now()
+);
+create index calorie_burns_day_idx on calorie_burns (day);
+
+create table burn_goal (
+  id int primary key default 1 check (id = 1),
+  kcal int not null check (kcal between 50 and 3000),
+  updated_at timestamptz not null default now()
+);
 `
 
 export const MIGRATIONS: string[] = [
@@ -213,4 +228,18 @@ export const MIGRATIONS: string[] = [
   `alter table weekly_reports alter column analysis drop not null`,
   // 2: miniatura das fotos do corpo (bancos criados antes dela não tinham a coluna)
   `alter table body_photos add column if not exists thumb_path text`,
+  // 3: gasto calórico anotado (exercício, relógio, passos…) e a meta diária de gasto
+  `create table if not exists calorie_burns (
+     id uuid primary key default gen_random_uuid(),
+     day date not null,
+     kcal int not null check (kcal between 1 and 5000),
+     label text not null default '' check (char_length(label) <= 80),
+     created_at timestamptz not null default now()
+   );
+   create index if not exists calorie_burns_day_idx on calorie_burns (day);
+   create table if not exists burn_goal (
+     id int primary key default 1 check (id = 1),
+     kcal int not null check (kcal between 50 and 3000),
+     updated_at timestamptz not null default now()
+   )`,
 ]

@@ -29,6 +29,7 @@ import { describeChanges } from './ai/photoCompare'
 import {
   ensureLastWeekReport, getReport, listReports, mondayOf, regenerateAnalysis, weekNumbers, type Report, type WeekNumbers,
 } from './reports'
+import { addBurn, burnSummary, deleteBurn, listBurns, setBurnGoal, type Burn, type BurnSummary } from './burns'
 import { getMessages, listConversations, retryLastMessage, sendCoachMessage, type CoachMessage, type Conversation } from './ai/coach'
 
 /**
@@ -462,4 +463,34 @@ export async function ensureReportsOnOpen(): Promise<void> {
   } catch (e) {
     console.error(e)
   }
+}
+
+// ── Gasto calórico ───────────────────────────────────────────────────────────
+
+export type { Burn, BurnSummary }
+
+/** Gasto por dia nos últimos `days` dias (7 ou 30), com a meta diária. */
+export async function loadBurnSummary(days: number): Promise<BurnSummary> {
+  return burnSummary(await getDb(), days)
+}
+
+/** Gastos anotados, do mais recente ao mais antigo. */
+export async function loadBurns(): Promise<Burn[]> {
+  return listBurns(await getDb())
+}
+
+/** Anota um gasto (texto em kcal, 1–5000) em `day` (padrão: hoje). */
+export async function saveBurn(input: { kcalStr: string; label?: string; day?: Day }): Promise<void> {
+  const kcal = parseNum(input.kcalStr, { min: 1, max: 5000, label: 'Gasto' })
+  await write((db) => addBurn(db, { day: input.day ?? todayIn(), kcal, label: input.label }))
+}
+
+export async function deleteBurnApi(id: string): Promise<void> {
+  await write((db) => deleteBurn(db, id))
+}
+
+/** Meta diária de gasto (kcal, 50–3000). */
+export async function saveBurnGoal(kcalStr: string): Promise<void> {
+  const kcal = parseNum(kcalStr, { min: 50, max: 3000, label: 'Meta de gasto' })
+  await write((db) => setBurnGoal(db, kcal))
 }

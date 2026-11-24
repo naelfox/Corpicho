@@ -9,6 +9,7 @@ import {
 import { AI_ERROR_TEXT, AiError } from '@/lib/ai/client'
 import { todayIn } from '@/lib/dates'
 import { ValidationError } from '@/lib/validate'
+import { BurnCard } from './BurnView'
 import { ExerciseCard } from './ExerciseCard'
 import { PlanEditor, WEEK_ORDER, WEEKDAY_NAME, WeekStrip } from './PlanEditor'
 import { ActivitySheet, SessionSheet } from './SessionSheet'
@@ -374,6 +375,8 @@ export function TrainingView() {
       <button type="button" onClick={() => setActivityOpen(true)} className={btnOutline}>
         <Footprints aria-hidden size={18} /> Atividade avulsa
       </button>
+
+      <BurnCard />
 
       {recent.length > 0 && (
         <section className={card} aria-label="Últimos treinos">
