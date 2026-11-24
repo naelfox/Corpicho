@@ -32,6 +32,15 @@ Identifique cada alimento distinto que aparece na foto. Para cada um informe:
 - confidence: "alta", "media" ou "baixa".
 Não invente alimentos que não estão visíveis. Se não houver comida na foto, devolva a lista vazia.`
 
+const TEXT_INSTRUCTIONS = `Você lê o que uma pessoa escreveu (ou ditou por voz) sobre o que comeu e transforma em itens para registrar. Responda em português do Brasil.
+O texto pode ter erros de ditado, falta de pontuação e números por extenso ("dois ovos", "meia xícara"). Identifique cada alimento ou bebida citado. Para cada um informe:
+- name: nome claro do alimento (ex.: Ovo mexido, Pão francês, Café com leite);
+- searchTerms: 2 a 4 palavras para buscar na tabela TACO, no estilo dela: comece pelo alimento principal e depois tipo e preparo (ex.: "arroz tipo 1 cozido", "feijao carioca cozido", "ovo galinha mexido", "pao trigo frances", "frango peito grelhado"). Se o item for um prato composto, comece pelo prato (ex.: "feijoada");
+- estimatedGrams: o total em gramas (ou ml, para bebidas) da quantidade dita. Converta unidades e medidas caseiras: "2 ovos" ≈ 100, "1 pão francês" ≈ 50, "1 concha de feijão" ≈ 140, "3 colheres de sopa de arroz" ≈ 75, "1 copo de suco" ≈ 240, "1 fatia de queijo" ≈ 20. Sem quantidade dita, use uma porção comum de um adulto;
+- per100: kcal, proteína, carboidrato e gordura (g) por 100 g (kcal100, protein100, carbs100, fat100);
+- confidence: "alta" se o alimento e a quantidade estão claros, "media" se você estimou a quantidade, "baixa" se nem o alimento está claro.
+Não invente alimentos que a pessoa não citou. Se o texto não fala de comida, devolva a lista vazia.`
+
 const isNum = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n)
 
 export function normalizePlateItems(raw: unknown[]): PlateItem[] {
@@ -99,6 +108,43 @@ export async function analyzePlate(
       return { value: r.output.items, usage: r.usage }
     },
   })
+  return matchTaco(db, raw)
+}
+
+/**
+ * Descrição em texto (digitada ou ditada pelo teclado) → itens com gramas, como na foto.
+ * Lança AiError; nada é salvo aqui.
+ */
+export async function analyzeMealText(
+  db: Db,
+  text: string,
+  deps?: RunAiOptions<unknown>['deps'],
+): Promise<PlateItem[]> {
+  const t = text.trim()
+  if (!t) return []
+  const raw = await runAi(db, {
+    feature: 'meal_text',
+    kind: 'text',
+    deps,
+    call: async (model: LanguageModel, signal: AbortSignal) => {
+      const r = await generateText({
+        model,
+        instructions: TEXT_INSTRUCTIONS,
+        messages: [{ role: 'user', content: t.slice(0, 2000) }],
+        output: Output.object({ schema }),
+        maxRetries: 1,
+        abortSignal: signal,
+      })
+      return { value: r.output.items, usage: r.usage }
+    },
+  })
+  return matchTaco(db, raw)
+}
+
+type RawItem = z.infer<typeof itemSchema>
+
+/** Normaliza o que a IA devolveu e troca cada item pelo alimento da TACO mais parecido (se houver). */
+async function matchTaco(db: Db, raw: RawItem[]): Promise<PlateItem[]> {
   // Mesma chave da deduplicação em normalizePlateItems (nome sem espaços nas pontas, minúsculo).
   const terms = new Map<string, string>()
   for (const i of raw) {

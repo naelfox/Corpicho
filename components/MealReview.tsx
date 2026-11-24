@@ -1,11 +1,14 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeftRight, Plus, X } from 'lucide-react'
-import { addMealApi, analyzePlateApi, type Food, type MealType, type PlateItem } from '@/lib/api'
+import { ArrowLeftRight, MessageSquareText, Plus, X } from 'lucide-react'
+import {
+  addMealApi, analyzeMealTextApi, analyzePlateApi, updateMealApi, type EditItem, type Food, type MealType, type MealWithItems,
+  type PlateItem,
+} from '@/lib/api'
 import { AI_ERROR_TEXT, AiError } from '@/lib/ai/client'
 import { pushBackHandler } from './back'
-import { mealTypeAt } from '@/lib/meals'
+import { mealTypeAt, type MealSource } from '@/lib/meals'
 import { scaleFood, sumMacros, type Per100 } from '@/lib/nutrition'
 import { ValidationError, parseNum } from '@/lib/validate'
 import { FoodSearch, MacroLine, loose, per100Of } from './AddFoodSheet'
@@ -18,6 +21,12 @@ import { toast } from './Toast'
 
 export type PlatePhoto = { dataUrl: string; path: string | null }
 
+/** O que abre a tela: foto do prato, descrição em texto/voz (ambas passam pela IA) ou uma refeição salva para editar. */
+export type ReviewInput =
+  | { kind: 'photo'; photo: PlatePhoto }
+  | { kind: 'text'; text: string }
+  | { kind: 'edit'; meal: MealWithItems }
+
 type Row = {
   key: number
   name: string
@@ -27,9 +36,29 @@ type Row = {
   /** Peso ainda é o estimado pela foto (some ao editar). */
   estimated: boolean
   lowConfidence: boolean
+  /** Origem do item já salvo (edição); itens novos entram como 'manual'. */
+  source?: MealSource
 }
 
 let seq = 0
+
+const fromSaved = (it: MealWithItems['items'][number]): Row => {
+  // O banco guarda macros do item, não por 100 g: deriva de volta para recalcular ao mudar o peso.
+  const k = 100 / it.grams
+  return {
+    key: ++seq,
+    name: it.name,
+    foodId: it.foodId ?? undefined,
+    per100: { kcal100: it.kcal * k, protein100: it.protein * k, carbs100: it.carbs * k, fat100: it.fat * k },
+    grams: String(it.grams).replace('.', ','),
+    estimated: false,
+    lowConfidence: false,
+    source: it.source,
+  }
+}
+
+const analyze = (input: ReviewInput): Promise<PlateItem[]> | null =>
+  input.kind === 'photo' ? analyzePlateApi(input.photo.dataUrl) : input.kind === 'text' ? analyzeMealTextApi(input.text) : null
 
 const fromPlate = (it: PlateItem): Row => ({
   key: ++seq,
@@ -42,34 +71,38 @@ const fromPlate = (it: PlateItem): Row => ({
 })
 
 /**
- * Revisão da foto do prato. A IA só sugere: cada peso começa no estimado (selo "estimado")
+ * Conferência da refeição. Da foto ou do texto, a IA só sugere: cada peso começa no estimado (selo "estimado")
  * e nada é salvo até "Salvar refeição". Erro de IA → aviso e lista vazia para preencher à mão.
+ * Na edição, abre com os itens salvos e "Salvar alterações" substitui os itens da refeição.
  */
-export function PlateReview({ photo, onDone, onCancel }: { photo: PlatePhoto; onDone: () => void; onCancel: () => void }) {
-  const [analyzing, setAnalyzing] = useState(true)
-  const [rows, setRows] = useState<Row[]>([])
-  const [type, setType] = useState<MealType>(() => mealTypeAt())
+export function MealReview({ input, onDone, onCancel }: { input: ReviewInput; onDone: () => void; onCancel: () => void }) {
+  const editing = input.kind === 'edit' ? input.meal : null
+  const [analyzing, setAnalyzing] = useState(!editing)
+  const [rows, setRows] = useState<Row[]>(() => (editing ? editing.items.map(fromSaved) : []))
+  const [type, setType] = useState<MealType>(() => editing?.type ?? mealTypeAt())
   const [picker, setPicker] = useState<{ swap: number | null } | null>(null)
   const [busy, setBusy] = useState(false)
   const [invalid, setInvalid] = useState<Set<number>>(new Set())
   /** Por que a lista veio vazia (erro da IA ou nada reconhecido); fica visível enquanto não houver itens. */
   const [note, setNote] = useState<string | null>(null)
 
-  // Uma chamada por foto, mesmo com o efeito rodando duas vezes (StrictMode no dev): cada chamada custa.
+  // Uma chamada por análise, mesmo com o efeito rodando duas vezes (StrictMode no dev): cada chamada custa.
   const request = useRef<Promise<PlateItem[]> | null>(null)
   // Trava síncrona: dois toques antes do React re-renderizar com `busy` não salvam duas refeições.
   const saving = useRef(false)
 
+  const where = input.kind === 'photo' ? 'na foto' : 'no que você escreveu'
   useEffect(() => {
     let live = true
-    request.current ??= analyzePlateApi(photo.dataUrl)
+    request.current ??= analyze(input)
+    if (!request.current) return
     request.current
       .then((items) => {
         if (!live) return
         setRows(items.map(fromPlate))
         if (items.length === 0) {
-          setNote('Não reconheci alimentos na foto.')
-          toast('Não reconheci alimentos na foto. Adicione à mão.', 'erro')
+          setNote(`Não reconheci alimentos ${where}.`)
+          toast(`Não reconheci alimentos ${where}. Adicione à mão.`, 'erro')
         }
       })
       .catch((e) => {
@@ -83,9 +116,11 @@ export function PlateReview({ photo, onDone, onCancel }: { photo: PlatePhoto; on
     return () => {
       live = false
     }
-  }, [photo.dataUrl])
+    // A tela é montada de novo para cada entrada (key no pai): roda uma vez.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  // "Voltar" do Android = Descartar (apaga a foto guardada); a folha de trocar item, se aberta, fecha antes.
+  // "Voltar" do Android = Descartar/Cancelar (apaga a foto guardada, se houver); a folha de trocar item, se aberta, fecha antes.
   const cancel = useRef(onCancel)
   useEffect(() => {
     cancel.current = onCancel
@@ -118,6 +153,14 @@ export function PlateReview({ photo, onDone, onCancel }: { photo: PlatePhoto; on
       for (const r of rows) {
         try {
           const grams = parseNum(r.grams, { min: 0.1, max: 5000, label: `Peso de ${r.name}` })
+          if (editing) {
+            // Item salvo sem alimento (macros digitados à mão): recalcula os macros, sem criar alimento novo.
+            const it: EditItem = r.foodId
+              ? { foodId: r.foodId, name: r.name, grams, per100: r.per100, source: r.source }
+              : { name: r.name, grams, macros: scaleFood(r.per100, grams), source: r.source }
+            items.push(it)
+            continue
+          }
           // Sem alimento da tabela: o item é estimativa da IA (origem 'ia'), nunca sobrescreve um alimento seu.
           items.push(r.foodId ? { foodId: r.foodId, name: r.name, grams, per100: r.per100 } : { name: r.name, grams, per100: r.per100, origin: 'ia' as const })
         } catch (e) {
@@ -128,8 +171,14 @@ export function PlateReview({ photo, onDone, onCancel }: { photo: PlatePhoto; on
       }
       setInvalid(bad)
       if (firstError) throw firstError
-      await addMealApi({ type, source: 'ia_confirmada', items, ...(photo.path ? { photoPath: photo.path } : {}) })
-      toast('Refeição registrada.')
+      if (editing) {
+        await updateMealApi(editing.id, { type, items })
+        toast('Refeição atualizada.')
+      } else {
+        const photoPath = input.kind === 'photo' ? input.photo.path : null
+        await addMealApi({ type, source: 'ia_confirmada', items, ...(photoPath ? { photoPath } : {}) })
+        toast('Refeição registrada.')
+      }
       onDone()
     } catch (e) {
       if (e instanceof ValidationError) toast(e.message, 'erro')
@@ -145,16 +194,30 @@ export function PlateReview({ photo, onDone, onCancel }: { photo: PlatePhoto; on
 
   return (
     <div className="anim-enter-up flex flex-col gap-3 pt-3">
-      <div className="relative overflow-hidden rounded-2xl bg-[var(--track)]">
-        {/* eslint-disable-next-line @next/next/no-img-element -- data URL local */}
-        <img src={photo.dataUrl} alt="Foto do prato" className="max-h-60 w-full object-cover" />
-        {analyzing && (
-          <div role="status" className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/45 text-white">
-            <span aria-hidden className="size-7 animate-spin rounded-full border-[3px] border-white/30 border-t-white" />
-            <span className="text-[15px] font-medium">Analisando…</span>
-          </div>
-        )}
-      </div>
+      {input.kind === 'photo' && (
+        <div className="relative overflow-hidden rounded-2xl bg-[var(--track)]">
+          {/* eslint-disable-next-line @next/next/no-img-element -- data URL local */}
+          <img src={input.photo.dataUrl} alt="Foto do prato" className="max-h-60 w-full object-cover" />
+          {analyzing && (
+            <div role="status" className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/45 text-white">
+              <span aria-hidden className="size-7 animate-spin rounded-full border-[3px] border-white/30 border-t-white" />
+              <span className="text-[15px] font-medium">Analisando…</span>
+            </div>
+          )}
+        </div>
+      )}
+      {input.kind === 'text' && (
+        <section className={`${card} flex gap-3`} aria-label="O que você descreveu">
+          <MessageSquareText aria-hidden size={18} className="mt-0.5 shrink-0 text-[var(--muted)]" />
+          <p className="min-w-0 flex-1 text-[15px] leading-snug whitespace-pre-wrap">{input.text}</p>
+          {analyzing && (
+            <span role="status" className="flex shrink-0 items-start">
+              <span aria-hidden className="size-5 animate-spin rounded-full border-[3px] border-[var(--accent-soft)] border-t-[var(--accent)]" />
+              <span className="sr-only">Analisando…</span>
+            </span>
+          )}
+        </section>
+      )}
 
       {analyzing ? (
         <button type="button" onClick={onCancel} className={`${btnGhost} w-full border border-[var(--line)]`}>
@@ -163,9 +226,11 @@ export function PlateReview({ photo, onDone, onCancel }: { photo: PlatePhoto; on
       ) : (
         <>
           <div className="px-1">
-            <h2 className="text-[19px] font-semibold tracking-[-0.01em]">Confira o prato</h2>
+            <h2 className="text-[19px] font-semibold tracking-[-0.01em]">{editing ? 'Editar refeição' : 'Confira a refeição'}</h2>
             <p className="mt-0.5 text-[14px] leading-snug text-[var(--muted)]">
-              Ajuste o peso de cada item. O peso que veio da foto fica marcado como estimado até você mudar.
+              {editing
+                ? 'Mude a quantidade, troque, tire ou adicione itens.'
+                : 'Ajuste a quantidade de cada item. O peso que a IA estimou fica marcado como estimado até você mudar.'}
             </p>
           </div>
 
@@ -242,7 +307,7 @@ export function PlateReview({ photo, onDone, onCancel }: { photo: PlatePhoto; on
             <Plus aria-hidden size={18} /> Adicionar item
           </button>
 
-          <section className={card} aria-label="Total do prato">
+          <section className={card} aria-label="Total da refeição">
             <p className="text-[13px] text-[var(--muted)]">Total</p>
             <MacroLine m={total} className="mt-0.5 text-[15px]" />
             <div className="mt-4">
@@ -253,10 +318,10 @@ export function PlateReview({ photo, onDone, onCancel }: { photo: PlatePhoto; on
 
           <div className="flex gap-2">
             <button type="button" onClick={onCancel} className={btnGhost}>
-              Descartar
+              {editing ? 'Cancelar' : 'Descartar'}
             </button>
             <button type="button" onClick={() => void confirm()} disabled={busy || rows.length === 0} className={`${btnPrimary} flex-1`}>
-              {busy ? 'Salvando…' : 'Salvar refeição'}
+              {busy ? 'Salvando…' : editing ? 'Salvar alterações' : 'Salvar refeição'}
             </button>
           </div>
         </>

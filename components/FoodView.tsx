@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Camera, ChevronLeft, ChevronRight, Plus, RotateCcw } from 'lucide-react'
+import { Camera, ChevronLeft, ChevronRight, MessageSquareText, Plus, RotateCcw } from 'lucide-react'
 import {
   discardPlatePhoto, hasNativeCamera, loadDay, subscribe, takeAndStorePlatePhoto, type MealWithItems,
 } from '@/lib/api'
@@ -12,7 +12,8 @@ import { Segmented } from './Chips'
 import { MacroBars } from './MacroBars'
 import { MEAL_SHORT } from './MealTypePicker'
 import { MealCard, MealHistory, RepeatSheet, card, dayLabel } from './MealHistory'
-import { PlateReview, type PlatePhoto } from './PlateReview'
+import { DescribeMealSheet } from './DescribeMealSheet'
+import { MealReview, type ReviewInput } from './MealReview'
 import { btnPrimary } from './Sheet'
 import { toast } from './Toast'
 
@@ -27,7 +28,7 @@ function readFile(file: File): Promise<string> {
   })
 }
 
-/** Aba Comer: o dia (com setas), totais x meta, refeições; foto do prato, registro manual e histórico. */
+/** Aba Comer: o dia (com setas), totais x meta, refeições; foto do prato, descrição (texto/voz), registro manual, edição e histórico. */
 export function FoodView() {
   const [view, setView] = useState<'dia' | 'historico'>('dia')
   const [day, setDay] = useState<Day>(() => todayIn())
@@ -37,7 +38,10 @@ export function FoodView() {
   const [addKey, setAddKey] = useState(0)
   const [repeat, setRepeat] = useState<MealWithItems | null>(null)
   const [repeatKeepType, setRepeatKeepType] = useState(false)
-  const [photo, setPhoto] = useState<PlatePhoto | null>(null)
+  const [review, setReview] = useState<ReviewInput | null>(null)
+  const [reviewKey, setReviewKey] = useState(0)
+  const [describeOpen, setDescribeOpen] = useState(false)
+  const [describeKey, setDescribeKey] = useState(0)
   const [capturing, setCapturing] = useState(false)
   const [native, setNative] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -79,11 +83,27 @@ export function FoodView() {
     setAddOpen(true)
   }
 
-  const startReview = (p: { dataUrl: string; path: string | null } | null) => {
-    if (!p) return
-    setPhoto(p)
+  const openReview = (r: ReviewInput) => {
+    setReviewKey((k) => k + 1)
+    setReview(r)
     window.scrollTo(0, 0)
   }
+
+  const startReview = (p: { dataUrl: string; path: string | null } | null) => {
+    if (p) openReview({ kind: 'photo', photo: p })
+  }
+
+  const openDescribe = () => {
+    setDescribeKey((k) => k + 1)
+    setDescribeOpen(true)
+  }
+
+  const describe = (text: string) => {
+    setDescribeOpen(false)
+    openReview({ kind: 'text', text })
+  }
+
+  const editMeal = (meal: MealWithItems) => openReview({ kind: 'edit', meal })
 
   const takePhoto = async () => {
     // No navegador (dev) não há câmera do Capacitor: usa o seletor de arquivo (precisa do toque direto).
@@ -118,15 +138,18 @@ export function FoodView() {
   }
 
   const closeReview = (saved: boolean) => {
-    if (!saved && photo?.path) void discardPlatePhoto(photo.path)
-    setPhoto(null)
-    setDay(todayIn())
-    setView('dia')
+    if (!saved && review?.kind === 'photo' && review.photo.path) void discardPlatePhoto(review.photo.path)
+    // Edição volta para onde estava (dia ou histórico); registro novo vai para hoje.
+    if (review?.kind !== 'edit') {
+      setDay(todayIn())
+      setView('dia')
+    }
+    setReview(null)
     window.scrollTo(0, 0)
   }
 
-  if (photo) {
-    return <PlateReview photo={photo} onDone={() => closeReview(true)} onCancel={() => closeReview(false)} />
+  if (review) {
+    return <MealReview key={reviewKey} input={review} onDone={() => closeReview(true)} onCancel={() => closeReview(false)} />
   }
 
   // Já vem na ordem café → outras (lib/meals).
@@ -147,7 +170,7 @@ export function FoodView() {
       />
 
       {view === 'historico' ? (
-        <MealHistory onRepeat={openRepeat} />
+        <MealHistory onRepeat={openRepeat} onEdit={editMeal} />
       ) : (
         <>
           <nav aria-label="Dia" className="flex items-center justify-between">
@@ -240,6 +263,14 @@ export function FoodView() {
                 <Plus aria-hidden size={19} />
                 Adicionar
               </button>
+              <button
+                type="button"
+                onClick={openDescribe}
+                className="col-span-2 flex h-12 items-center justify-center gap-2 rounded-xl bg-[var(--card)] px-3 whitespace-nowrap text-[15px] font-medium shadow-[var(--shadow-card)] transition-transform duration-150 ease-[var(--ease-out)] active:scale-[0.97]"
+              >
+                <MessageSquareText aria-hidden size={19} />
+                Descrever o que comi
+              </button>
               <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => void onFile(e)} />
             </div>
           )}
@@ -250,12 +281,13 @@ export function FoodView() {
             </p>
           )}
           {meals.map((m) => (
-            <MealCard key={m.id} meal={m} onRepeat={openRepeat} itemDelete />
+            <MealCard key={m.id} meal={m} onRepeat={openRepeat} onEdit={editMeal} itemDelete />
           ))}
         </>
       )}
 
       <AddFoodSheet key={addKey} open={addOpen} onClose={() => setAddOpen(false)} />
+      <DescribeMealSheet key={describeKey} open={describeOpen} onClose={() => setDescribeOpen(false)} onAnalyze={describe} />
       <RepeatSheet meal={repeat} keepType={repeatKeepType} onClose={() => setRepeat(null)} />
     </div>
   )

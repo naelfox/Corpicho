@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { MockLanguageModelV4 } from 'ai/test'
 import { createTestDb } from '@/test/db'
 import { seedTaco, searchFoods } from '@/lib/foods'
-import { normalizePlateItems, analyzePlate } from './plate'
+import { normalizePlateItems, analyzeMealText, analyzePlate } from './plate'
 
 const p = { kcal100: 76, protein100: 4.8, carbs100: 14, fat100: 0.5 }
 
@@ -108,5 +108,30 @@ describe('analyzePlate', () => {
     await expect(analyzePlate(db, 'data:image/jpeg;base64,AAAA', deps(model('não é json')))).rejects.toMatchObject({
       code: 'bad_output',
     })
+  })
+})
+
+describe('analyzeMealText', () => {
+  it('manda o texto e casa com a TACO; registra o uso como meal_text', async () => {
+    const db = await createTestDb()
+    await seedTaco(db)
+    const m = model(
+      JSON.stringify({
+        items: [{ name: 'Pão francês', searchTerms: 'pao trigo frances', estimatedGrams: 100, per100: p, confidence: 'alta' }],
+      }),
+    )
+    const out = await analyzeMealText(db, 'comi dois pães franceses', deps(m))
+    expect(out).toHaveLength(1)
+    expect(out[0].name).toBe('Pão, trigo, francês')
+    expect(out[0].estimatedGrams).toBe(100)
+    expect(JSON.stringify(m.doGenerateCalls[0].prompt)).toContain('comi dois pães franceses')
+    const [u] = await db.query<{ feature: string }>(`select feature from ai_usage`)
+    expect(u.feature).toBe('meal_text')
+  })
+  it('texto vazio não chama a IA', async () => {
+    const db = await createTestDb()
+    const m = model('{"items":[]}')
+    expect(await analyzeMealText(db, '   ', deps(m))).toEqual([])
+    expect(m.doGenerateCalls).toHaveLength(0)
   })
 })

@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Camera, RotateCcw, Trash2, X } from 'lucide-react'
+import { Camera, Pencil, RotateCcw, Trash2, X } from 'lucide-react'
 import {
   HISTORY_PAGE, deleteMealApi, deleteMealItemApi, loadHistory, loadPhoto, repeatMealApi, subscribe,
   type MealType, type MealWithItems,
@@ -50,16 +50,18 @@ function MealPhoto({ path }: { path: string }) {
 }
 
 /**
- * Uma refeição: tipo, hora, total, itens. Ações: repetir e apagar (com confirmação no app).
+ * Uma refeição: tipo, hora, total, itens. Ações: repetir, editar e apagar (com confirmação no app).
  * `itemDelete` liga o "x" em cada item (apagar o último item apaga a refeição).
  */
 export function MealCard({
   meal,
   onRepeat,
+  onEdit,
   itemDelete = false,
 }: {
   meal: MealWithItems
   onRepeat: (m: MealWithItems) => void
+  onEdit: (m: MealWithItems) => void
   itemDelete?: boolean
 }) {
   const [confirm, setConfirm] = useState<'meal' | string | null>(null)
@@ -142,6 +144,13 @@ export function MealCard({
           </button>
           <button
             type="button"
+            onClick={() => onEdit(meal)}
+            className="flex h-10 items-center gap-1.5 rounded-lg px-2 text-[14px] font-medium text-[var(--accent-text)] active:scale-[0.96]"
+          >
+            <Pencil aria-hidden size={16} /> Editar
+          </button>
+          <button
+            type="button"
             onClick={() => setConfirm('meal')}
             className="flex h-10 items-center gap-1.5 rounded-lg px-2 text-[14px] text-[var(--muted)] active:scale-[0.96]"
           >
@@ -211,7 +220,7 @@ export function RepeatSheet({ meal, onClose, keepType = false }: { meal: MealWit
 type HistoryDay = { day: Day; meals: MealWithItems[] }
 
 /** Histórico por dia, do mais recente para o mais antigo, em páginas. */
-export function MealHistory({ onRepeat }: { onRepeat: (m: MealWithItems) => void }) {
+export function MealHistory({ onRepeat, onEdit }: { onRepeat: (m: MealWithItems) => void; onEdit: (m: MealWithItems) => void }) {
   const [days, setDays] = useState<HistoryDay[] | null>(null)
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
@@ -269,7 +278,7 @@ export function MealHistory({ onRepeat }: { onRepeat: (m: MealWithItems) => void
           </div>
           <div className="flex flex-col gap-2">
             {meals.map((m) => (
-              <MealCard key={m.id} meal={m} onRepeat={onRepeat} />
+              <MealCard key={m.id} meal={m} onRepeat={onRepeat} onEdit={onEdit} />
             ))}
           </div>
         </section>

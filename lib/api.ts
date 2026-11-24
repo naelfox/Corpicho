@@ -11,11 +11,11 @@ import { evolutionSummary, getSeries, type Metric, type Period, type Series, typ
 import { getDashboard, type Dashboard } from './dashboard'
 import { parseNum } from './validate'
 import { monthUsage } from './ai/client'
-import { analyzePlate, type PlateItem } from './ai/plate'
+import { analyzeMealText, analyzePlate, type PlateItem } from './ai/plate'
 import { searchFoods, type Food } from './foods'
 import {
-  addMeal, deleteMeal, deleteMealItem, getDayMeals, getHistory, repeatMeal,
-  type MealType, type MealWithItems, type NewItem,
+  addMeal, deleteMeal, deleteMealItem, getDayMeals, getHistory, repeatMeal, updateMeal,
+  type EditItem, type MealType, type MealWithItems, type NewItem,
 } from './meals'
 import { sumMacros, type Macros } from './nutrition'
 import { todayIn, weekdayOf, type Day } from './dates'
@@ -132,7 +132,7 @@ export async function loadMonthUsage(): Promise<{ costUsd: number; calls: number
 
 // ── Comer ────────────────────────────────────────────────────────────────────
 
-export type { Food, MealType, MealWithItems, NewItem, PlateItem }
+export type { EditItem, Food, MealType, MealWithItems, NewItem, PlateItem }
 
 /** Refeições do dia, totais e a meta (null se ainda não houver meta). */
 export async function loadDay(day: Day): Promise<{ meals: MealWithItems[]; totals: Macros; targets: Macros | null }> {
@@ -169,6 +169,11 @@ export async function deleteMealItemApi(id: string): Promise<void> {
   await write((db) => deleteMealItem(db, id))
 }
 
+/** Edita uma refeição salva (tipo e itens). */
+export async function updateMealApi(id: string, input: { type: MealType; items: EditItem[] }): Promise<void> {
+  await write((db) => updateMeal(db, id, input))
+}
+
 /** Copia a refeição para hoje com o tipo escolhido. */
 export async function repeatMealApi(id: string, type: MealType): Promise<string> {
   return write((db) => repeatMeal(db, id, type))
@@ -184,6 +189,11 @@ export async function loadHistory(before?: Day, limit = HISTORY_PAGE): Promise<{
 /** Manda a foto (já reduzida) para a IA. Lança AiError (ver AI_ERROR_TEXT). Nada é salvo aqui. */
 export async function analyzePlateApi(dataUrl: string): Promise<PlateItem[]> {
   return analyzePlate(await getDb(), dataUrl)
+}
+
+/** Manda a descrição da refeição (digitada ou ditada) para a IA. Lança AiError. Nada é salvo aqui. */
+export async function analyzeMealTextApi(text: string): Promise<PlateItem[]> {
+  return analyzeMealText(await getDb(), text)
 }
 
 // Capacitor só é carregado quando a câmera/arquivos são usados (o build estático e os testes não o tocam).

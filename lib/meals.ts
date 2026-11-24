@@ -193,6 +193,40 @@ export async function deleteMealItem(db: Db, id: string): Promise<void> {
   await db.query(`delete from meal_items where id = $1`, [id])
 }
 
+/** Item de uma refeição sendo editada: `source` mantém a origem do item já salvo (novos entram como 'manual'). */
+export type EditItem = NewItem & { source?: MealSource }
+
+/**
+ * Edita uma refeição salva: troca o tipo e substitui todos os itens (numa transação).
+ * Dia, hora e foto ficam como estão. Sem itens → erro (para tirar tudo, apague a refeição).
+ */
+export async function updateMeal(db: Db, mealId: string, input: { type: MealType; items: EditItem[] }): Promise<void> {
+  if (!MEAL_TYPES.includes(input.type)) throw new ValidationError('Refeição: tipo inválido.')
+  if (input.items.length === 0) throw new ValidationError('Adicione pelo menos um alimento.')
+  const items = input.items.map((i) => {
+    const source = i.source ?? 'manual'
+    if (source !== 'manual' && source !== 'ia_confirmada') throw new ValidationError('Origem inválida.')
+    return { ...check(i), source }
+  })
+  await withTx(db, async () => {
+    const [exists] = await db.query(`select 1 from meals where id = $1`, [mealId])
+    if (!exists) throw new ValidationError('Refeição não encontrada.')
+    await db.query(`update meals set type = $2 where id = $1`, [mealId, input.type])
+    await db.query(`delete from meal_items where meal_id = $1`, [mealId])
+    for (const it of items) {
+      let foodId = it.foodId
+      if (!foodId && it.per100) {
+        foodId = (await createFood(db, { name: it.name, origin: it.origin, ...it.per100 })).id
+      }
+      await db.query(
+        `insert into meal_items (meal_id, food_id, name, grams, kcal, protein_g, carbs_g, fat_g, source)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [mealId, foodId, it.name, it.grams, it.macros.kcal, it.macros.protein, it.macros.carbs, it.macros.fat, it.source],
+      )
+    }
+  })
+}
+
 /** Copia os itens (com os mesmos gramas e macros) para uma refeição nova de hoje. */
 export async function repeatMeal(db: Db, mealId: string, type: MealType, now?: Date): Promise<string> {
   if (!MEAL_TYPES.includes(type)) throw new ValidationError('Refeição: tipo inválido.')

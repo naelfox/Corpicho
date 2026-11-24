@@ -3,7 +3,7 @@ import { createTestDb } from '@/test/db'
 import { ValidationError } from '@/lib/validate'
 import { createFood } from '@/lib/foods'
 import {
-  addMeal, dailyTotals, deleteMeal, deleteMealItem, getDayMeals, getDayTotals, getHistory, repeatMeal, MEAL_LABEL, mealTypeAt,
+  addMeal, dailyTotals, deleteMeal, deleteMealItem, getDayMeals, getDayTotals, getHistory, repeatMeal, updateMeal, MEAL_LABEL, mealTypeAt,
 } from '@/lib/meals'
 
 const arroz = { kcal100: 128, protein100: 2.5, carbs100: 26.2, fat100: 0.2 }
@@ -194,5 +194,44 @@ describe('refeições', () => {
     const db = await createTestDb()
     await addMeal(db, { type: 'almoco', source: 'ia_confirmada', now, items: [{ name: 'Cuscuz', grams: 100, per100: arroz }] })
     expect(await db.query(`select origin from foods where name = 'Cuscuz'`)).toEqual([{ origin: 'usuario' }])
+  })
+
+  it('updateMeal troca tipo e itens, mantém dia, hora e origem', async () => {
+    const db = await createTestDb()
+    const id = await addMeal(db, {
+      type: 'almoco', source: 'ia_confirmada', now,
+      items: [{ name: 'Arroz', grams: 150, per100: arroz }, { name: 'Bife', grams: 100, macros: { kcal: 200, protein: 30, carbs: 0, fat: 9 } }],
+    })
+    const [before] = await getDayMeals(db, '2026-11-22')
+    const arrozId = before.items[0].foodId!
+    await updateMeal(db, id, {
+      type: 'jantar',
+      items: [
+        { foodId: arrozId, name: 'Arroz', grams: 200, per100: arroz, source: 'ia_confirmada' },
+        { name: 'Salada', grams: 50, macros: { kcal: 10, protein: 1, carbs: 2, fat: 0 } },
+      ],
+    })
+    const [m] = await getDayMeals(db, '2026-11-22')
+    expect(m.id).toBe(id)
+    expect(m.type).toBe('jantar')
+    expect(m.createdAt).toBe(before.createdAt)
+    expect(m.items.map((i) => [i.name, i.grams, i.kcal, i.source])).toEqual([
+      ['Arroz', 200, 256, 'ia_confirmada'],
+      ['Salada', 50, 10, 'manual'],
+    ])
+    expect(m.items[0].foodId).toBe(arrozId)
+  })
+
+  it('updateMeal recusa lista vazia e refeição inexistente sem mexer em nada', async () => {
+    const db = await createTestDb()
+    const id = await addMeal(db, { type: 'almoco', source: 'manual', now, items: [{ name: 'Arroz', grams: 150, per100: arroz }] })
+    await expect(updateMeal(db, id, { type: 'almoco', items: [] })).rejects.toThrow(ValidationError)
+    await expect(updateMeal(db, id, { type: 'almoco', items: [{ name: 'Arroz', grams: 0, per100: arroz }] })).rejects.toThrow(ValidationError)
+    await expect(
+      updateMeal(db, '00000000-0000-0000-0000-000000000000', { type: 'almoco', items: [{ name: 'A', grams: 10, per100: arroz }] }),
+    ).rejects.toThrow(ValidationError)
+    const [m] = await getDayMeals(db, '2026-11-22')
+    expect(m.items).toHaveLength(1)
+    expect(m.items[0].grams).toBe(150)
   })
 })

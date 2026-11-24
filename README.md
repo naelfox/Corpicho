@@ -3,7 +3,8 @@
 App para **emagrecer com acompanhamento**, tudo no celular:
 
 - **Hoje** — resumo do dia: calorias, macros e metas;
-- **Comer** — registre refeições (busca, manual ou foto do prato com IA) e veja calorias e macros;
+- **Comer** — registre refeições (busca, manual, foto do prato ou descrevendo o que comeu, digitando ou por voz, com IA),
+  edite as já salvas e veja calorias e macros;
 - **Meu Corpo** — peso, medidas e composição corporal (cada valor mostra se é medido, calculado ou estimado), fotos de progresso;
 - **Treino** — plano semanal gerado por IA (você revisa e edita) e registro das sessões;
 - **Evolução** — gráficos de peso, medidas e consumo;
@@ -13,6 +14,10 @@ Atalhos para o dia a dia:
 
 - **Repetir de ontem** — no topo do Comer aparecem as refeições de ontem que ainda não têm hoje; um toque abre
   a confirmação já com a mesma refeição (café, almoço...) escolhida.
+- **Descrever o que comi** — escreva (ou dite pelo microfone do teclado) algo como "2 ovos mexidos e um pão francês":
+  a IA separa os itens com as quantidades e você confere, ajusta e salva, como na foto do prato.
+- **Editar refeição** — em qualquer refeição salva (no dia ou no histórico), **Editar** abre os itens para mudar
+  quantidade, trocar, tirar ou adicionar.
 - **Peso rápido** — no Início, o botão **Registrar** no cartão do peso abre o teclado numérico direto.
 - **Treinar de novo** — depois de concluir o treino do dia, dá para registrar outra sessão no mesmo dia.
 
