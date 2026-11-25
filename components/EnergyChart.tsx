@@ -80,7 +80,7 @@ export function EnergyChart({ energy }: { energy: Energy }) {
             <span aria-hidden className="h-0.5 w-3.5 rounded-full bg-[var(--eaten)]" /> Consumido
           </li>
           <li className="flex items-center gap-1.5">
-            <span aria-hidden className="h-0.5 w-3.5 rounded-full bg-[var(--spent)]" /> Gasto
+            <span aria-hidden className="h-0.5 w-3.5 rounded-full bg-[var(--spent)]" /> Gasto total
           </li>
         </ul>
       </div>
@@ -130,7 +130,8 @@ export function EnergyChart({ energy }: { energy: Energy }) {
         </p>
         <p>
           <span className="block text-[15px] font-semibold tabular-nums text-[var(--ink)]">{fmt(cur.spent)}</span>
-          gasto
+          gasto total
+          <span className="block text-[11px]">{fmt(base)} corpo + {fmt(cur.spent - base)} atividade</span>
         </p>
         <p>
           <span className="block text-[15px] font-semibold tabular-nums text-[var(--ink)]">
@@ -140,7 +141,8 @@ export function EnergyChart({ energy }: { energy: Energy }) {
         </p>
       </div>
       <p className="mt-2 text-[11px] text-[var(--muted)]">
-        Gasto = basal estimado ({fmt(base)} kcal) + o que você anotou de atividade.
+        Gasto total = o que seu corpo gasta no dia só para funcionar (~{fmt(base)} kcal, estimado) + as atividades
+        que você anotou. O cartão &ldquo;Gasto hoje&rdquo; mostra só as atividades.
       </p>
     </div>
   )
