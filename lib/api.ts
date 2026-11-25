@@ -12,7 +12,8 @@ import { getDashboard, type Dashboard } from './dashboard'
 import { parseNum } from './validate'
 import { monthUsage } from './ai/client'
 import { analyzeMealText, analyzePlate, type PlateItem } from './ai/plate'
-import { searchFoods, type Food } from './foods'
+import { createFood, deleteMyFood, listMyFoods, searchFoods, type Food } from './foods'
+import { analyzeLabel, type LabelRead } from './ai/label'
 import {
   addMeal, deleteMeal, deleteMealItem, getDayMeals, getHistory, repeatMeal, updateMeal,
   type EditItem, type MealType, type MealWithItems, type NewItem,
@@ -149,6 +150,31 @@ export async function loadDay(day: Day): Promise<{ meals: MealWithItems[]; total
 /** Busca alimentos (TACO + do usuário); texto vazio = usados recentemente. */
 export async function searchFoodsApi(q: string): Promise<Food[]> {
   return searchFoods(await getDb(), q, 30)
+}
+
+export type { LabelRead }
+
+/** Alimentos cadastrados pelo usuário (à mão ou pelo rótulo). */
+export async function loadMyFoods(): Promise<Food[]> {
+  return listMyFoods(await getDb())
+}
+
+/** Cria ou corrige um alimento do usuário (mesmo nome = atualiza). */
+export async function saveMyFoodApi(input: Omit<Food, 'id' | 'origin'>): Promise<void> {
+  await write((db) => createFood(db, { ...input, origin: 'usuario' }))
+}
+
+export async function deleteMyFoodApi(id: string): Promise<void> {
+  await write((db) => deleteMyFood(db, id))
+}
+
+/** Foto do rótulo (câmera ou `fromDataUrl`) → valores lidos pela IA. Não guarda a foto. Cancelado → null. Lança AiError. */
+export async function readLabelApi(fromDataUrl?: string): Promise<LabelRead | null> {
+  const { takePhoto, resizeForAi } = await photos()
+  const original = fromDataUrl ?? (await takePhoto())?.dataUrl
+  if (!original) return null
+  // Letra miúda do rótulo: mais resolução que a foto do prato.
+  return analyzeLabel(await getDb(), await resizeForAi(original, 1600, 0.85))
 }
 
 export async function addMealApi(input: {

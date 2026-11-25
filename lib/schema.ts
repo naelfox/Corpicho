@@ -52,6 +52,8 @@ create table foods (
   protein_100 numeric not null check (protein_100 >= 0),
   carbs_100 numeric not null check (carbs_100 >= 0),
   fat_100 numeric not null check (fat_100 >= 0),
+  portion_label text check (char_length(portion_label) between 1 and 40),
+  portion_g numeric check (portion_g > 0 and portion_g <= 5000),
   last_used_at timestamptz,
   created_at timestamptz not null default now()
 );
@@ -242,4 +244,7 @@ export const MIGRATIONS: string[] = [
      kcal int not null check (kcal between 50 and 3000),
      updated_at timestamptz not null default now()
    )`,
+  // 4: porção do rótulo guardada no alimento ("1 xícara" = 50 g), para escolher sem balança
+  `alter table foods add column if not exists portion_label text check (char_length(portion_label) between 1 and 40);
+   alter table foods add column if not exists portion_g numeric check (portion_g > 0 and portion_g <= 5000)`,
 ]

@@ -1,4 +1,5 @@
-import type { Db } from './db'
+import { withTx, type Db } from './db'
+import type { Measure } from './measures'
 import taco from './taco.json'
 import { ValidationError, parseNum } from './validate'
 
@@ -10,6 +11,8 @@ export type Food = {
   protein100: number
   carbs100: number
   fat100: number
+  /** Porção do rótulo (ex.: "1 xícara" = 50 g); só alimentos do usuário têm. Ao salvar: null apaga, ausente mantém a atual. */
+  portion?: Measure | null
 }
 
 export type TacoRow = { name: string; kcal: number; protein: number; carbs: number; fat: number }
@@ -22,9 +25,11 @@ type FoodRow = {
   protein_100: string | number
   carbs_100: string | number
   fat_100: string | number
+  portion_label: string | null
+  portion_g: string | number | null
 }
 
-const COLS = 'id, name, origin, kcal_100, protein_100, carbs_100, fat_100'
+const COLS = 'id, name, origin, kcal_100, protein_100, carbs_100, fat_100, portion_label, portion_g'
 
 const toFood = (r: FoodRow): Food => ({
   id: r.id,
@@ -34,6 +39,7 @@ const toFood = (r: FoodRow): Food => ({
   protein100: Number(r.protein_100),
   carbs100: Number(r.carbs_100),
   fat100: Number(r.fat_100),
+  portion: r.portion_label && r.portion_g ? { label: r.portion_label, grams: Number(r.portion_g) } : null,
 })
 
 /** minúsculas, sem acento, pontuação vira espaço. */
@@ -64,13 +70,13 @@ export async function seedTaco(db: Db, rows: TacoRow[] = taco as TacoRow[]): Pro
   return inserted.length
 }
 
-/** Todas as palavras de `q` precisam aparecer; usados recentemente primeiro, depois A–Z. */
+/** Todas as palavras de `q` precisam aparecer; os do usuário primeiro, depois usados recentemente, depois A–Z. */
 export async function searchFoods(db: Db, q: string, limit = 20): Promise<Food[]> {
   const tokens = normalize(q).split(' ').filter(Boolean)
   const where = tokens.map((_, i) => `search like $${i + 1}`).join(' and ')
   const rows = await db.query<FoodRow>(
     `select ${COLS} from foods ${where ? `where ${where}` : ''}
-     order by last_used_at desc nulls last, name
+     order by origin = 'usuario' desc, last_used_at desc nulls last, name
      limit $${tokens.length + 1}`,
     [...tokens.map((t) => `%${t}%`), limit],
   )
@@ -144,17 +150,25 @@ export async function createFood(db: Db, input: Omit<Food, 'id'>): Promise<Food>
   const protein = parseNum(input.protein100, { min: 0, max: 100, label: 'Proteína' })
   const carbs = parseNum(input.carbs100, { min: 0, max: 100, label: 'Carboidratos' })
   const fat = parseNum(input.fat100, { min: 0, max: 100, label: 'Gordura' })
-  const params = [name, input.origin, normalize(name), kcal, protein, carbs, fat]
-  const insert = `insert into foods (name, origin, search, kcal_100, protein_100, carbs_100, fat_100)
-     values ($1, $2, $3, $4, $5, $6, $7)`
+  let portion: Measure | null = null
+  if (input.portion) {
+    const label = input.portion.label.trim()
+    if (label.length < 1 || label.length > 40) throw new ValidationError('Porção: dê um nome de 1 a 40 caracteres (ex.: 1 xícara).')
+    portion = { label, grams: parseNum(input.portion.grams, { min: 0.1, max: 5000, label: 'Peso da porção' }) }
+  }
+  const params = [name, input.origin, normalize(name), kcal, protein, carbs, fat, portion?.label ?? null, portion?.grams ?? null]
+  const insert = `insert into foods (name, origin, search, kcal_100, protein_100, carbs_100, fat_100, portion_label, portion_g)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
   if (input.origin === 'usuario') {
     // O usuário pode corrigir os valores do próprio alimento.
     const [row] = await db.query<FoodRow>(
       `${insert} on conflict (lower(name), origin) do update set
          kcal_100 = excluded.kcal_100, protein_100 = excluded.protein_100,
-         carbs_100 = excluded.carbs_100, fat_100 = excluded.fat_100
+         carbs_100 = excluded.carbs_100, fat_100 = excluded.fat_100,
+         portion_label = case when $10 then excluded.portion_label else foods.portion_label end,
+         portion_g = case when $10 then excluded.portion_g else foods.portion_g end
        returning ${COLS}`,
-      params,
+      [...params, input.portion !== undefined],
     )
     return toFood(row)
   }
@@ -171,4 +185,18 @@ export async function createFood(db: Db, input: Omit<Food, 'id'>): Promise<Food>
 
 export async function touchFood(db: Db, id: string): Promise<void> {
   await db.query(`update foods set last_used_at = now() where id = $1`, [id])
+}
+
+/** Alimentos que o usuário cadastrou (à mão ou pelo rótulo), A–Z. */
+export async function listMyFoods(db: Db): Promise<Food[]> {
+  const rows = await db.query<FoodRow>(`select ${COLS} from foods where origin = 'usuario' order by lower(name)`)
+  return rows.map(toFood)
+}
+
+/** Apaga um alimento do usuário. Refeições já salvas guardam nome e macros, então só perdem o vínculo. */
+export async function deleteMyFood(db: Db, id: string): Promise<void> {
+  await withTx(db, async () => {
+    await db.query(`update meal_items set food_id = null where food_id = $1 and exists (select 1 from foods where id = $1 and origin = 'usuario')`, [id])
+    await db.query(`delete from foods where id = $1 and origin = 'usuario'`, [id])
+  })
 }

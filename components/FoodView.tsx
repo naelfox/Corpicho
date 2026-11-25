@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Camera, ChevronLeft, ChevronRight, MessageSquareText, Plus, RotateCcw } from 'lucide-react'
+import { Camera, ChevronLeft, ChevronRight, MessageSquareText, Plus, RotateCcw, ScanText } from 'lucide-react'
 import {
   discardPlatePhoto, hasNativeCamera, loadDay, subscribe, takeAndStorePlatePhoto, type MealWithItems,
 } from '@/lib/api'
@@ -14,6 +14,7 @@ import { MEAL_SHORT } from './MealTypePicker'
 import { MealCard, MealHistory, RepeatSheet, card, dayLabel } from './MealHistory'
 import { DescribeMealSheet } from './DescribeMealSheet'
 import { MealReview, type ReviewInput } from './MealReview'
+import { MyFoodsSheet } from './MyFoodsSheet'
 import { btnPrimary } from './Sheet'
 import { toast } from './Toast'
 
@@ -42,6 +43,8 @@ export function FoodView() {
   const [reviewKey, setReviewKey] = useState(0)
   const [describeOpen, setDescribeOpen] = useState(false)
   const [describeKey, setDescribeKey] = useState(0)
+  const [myFoodsOpen, setMyFoodsOpen] = useState(false)
+  const [myFoodsKey, setMyFoodsKey] = useState(0)
   const [capturing, setCapturing] = useState(false)
   const [native, setNative] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -271,6 +274,17 @@ export function FoodView() {
                 <MessageSquareText aria-hidden size={19} />
                 Descrever o que comi
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMyFoodsKey((k) => k + 1)
+                  setMyFoodsOpen(true)
+                }}
+                className="col-span-2 flex h-11 items-center justify-center gap-2 rounded-xl px-3 text-[14px] font-medium text-[var(--accent-text)] transition-transform duration-150 ease-[var(--ease-out)] active:scale-[0.97]"
+              >
+                <ScanText aria-hidden size={18} />
+                Meus alimentos e rótulos
+              </button>
               <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => void onFile(e)} />
             </div>
           )}
@@ -287,6 +301,7 @@ export function FoodView() {
       )}
 
       <AddFoodSheet key={addKey} open={addOpen} onClose={() => setAddOpen(false)} />
+      <MyFoodsSheet key={myFoodsKey} open={myFoodsOpen} onClose={() => setMyFoodsOpen(false)} />
       <DescribeMealSheet key={describeKey} open={describeOpen} onClose={() => setDescribeOpen(false)} onAnalyze={describe} />
       <RepeatSheet meal={repeat} keepType={repeatKeepType} onClose={() => setRepeat(null)} />
     </div>

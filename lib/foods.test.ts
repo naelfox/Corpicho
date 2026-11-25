@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { createTestDb } from '@/test/db'
 import { ValidationError } from '@/lib/validate'
-import { bestFoodMatch, createFood, searchFoods, seedTaco, touchFood } from '@/lib/foods'
+import { bestFoodMatch, createFood, deleteMyFood, listMyFoods, searchFoods, seedTaco, touchFood } from '@/lib/foods'
 
 describe('foods', () => {
   it('seedTaco é idempotente', async () => {
@@ -86,5 +86,39 @@ describe('foods', () => {
     const [integral] = await searchFoods(db, 'arroz integral cozido', 1)
     await touchFood(db, integral.id)
     expect((await bestFoodMatch(db, 'arroz cozido'))?.name).toBe('Arroz, tipo 1, cozido')
+  })
+})
+
+describe('meus alimentos', () => {
+  const base = { origin: 'usuario' as const, kcal100: 400, protein100: 5, carbs100: 70, fat100: 10 }
+
+  it('guarda a porção, aparece primeiro na busca e corrigir sem porção mantém a antiga', async () => {
+    const db = await createTestDb()
+    await seedTaco(db)
+    const f = await createFood(db, { ...base, name: 'Biscoito maizena', portion: { label: '6 biscoitos', grams: 30 } })
+    expect(f.portion).toEqual({ label: '6 biscoitos', grams: 30 })
+    expect((await searchFoods(db, 'biscoito'))[0].id).toBe(f.id)
+    const again = await createFood(db, { ...base, name: 'biscoito maizena', kcal100: 410 })
+    expect(again).toMatchObject({ id: f.id, kcal100: 410, portion: { label: '6 biscoitos', grams: 30 } })
+    expect((await listMyFoods(db)).map((x) => x.name)).toEqual(['Biscoito maizena'])
+    expect((await createFood(db, { ...base, name: 'Biscoito maizena', portion: null })).portion).toBeNull()
+    await expect(createFood(db, { ...base, name: 'X', portion: { label: '', grams: 30 } })).rejects.toThrow(ValidationError)
+  })
+
+  it('apagar solta as refeições antigas e não toca na TACO', async () => {
+    const db = await createTestDb()
+    await seedTaco(db)
+    const f = await createFood(db, { ...base, name: 'Granola caseira' })
+    const [meal] = await db.query<{ id: string }>(`insert into meals (day, type) values ('2026-11-24', 'cafe') returning id`)
+    await db.query(
+      `insert into meal_items (meal_id, food_id, name, grams, kcal, protein_g, carbs_g, fat_g, source) values ($1, $2, 'Granola caseira', 40, 160, 2, 28, 4, 'manual')`,
+      [meal.id, f.id],
+    )
+    await deleteMyFood(db, f.id)
+    expect(await listMyFoods(db)).toEqual([])
+    expect(await db.query(`select food_id, kcal from meal_items`)).toEqual([{ food_id: null, kcal: '160' }])
+    const taco = (await searchFoods(db, 'arroz', 1))[0]
+    await deleteMyFood(db, taco.id)
+    expect((await searchFoods(db, 'arroz', 1))[0].id).toBe(taco.id)
   })
 })

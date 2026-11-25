@@ -51,9 +51,9 @@ describe('schema', () => {
 
   it('banco antigo (schema da Task 2) migra para o mesmo schema de um banco novo', async () => {
     // Task 2: sem body_photos.thumb_path, weekly_reports.analysis not null, schema_version 0.
-    const old = SCHEMA.replace(/\n\s*thumb_path text,/, '').replace(/analysis text,/, 'analysis text not null,')
+    const old = SCHEMA.replace(/\n\s*thumb_path text,/, '').replace(/\n\s*portion_label [^\n]*\n\s*portion_g [^\n]*,/, '').replace(/analysis text,/, 'analysis text not null,')
     expect(old).not.toBe(SCHEMA)
-    expect(old).not.toMatch(/thumb_path/)
+    expect(old).not.toMatch(/thumb_path|portion_g/)
     const pgOld = new PGlite()
     await pgOld.exec(`begin; ${old}; commit;`)
     await pgOld.exec(`create table app_meta (key text primary key, value text not null)`)

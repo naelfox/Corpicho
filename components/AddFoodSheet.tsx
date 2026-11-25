@@ -94,7 +94,12 @@ export function FoodSearch({ onPick, onNew }: { onPick: (f: Food) => void; onNew
               onClick={() => onPick(f)}
               className="flex min-h-12 w-full items-center justify-between gap-3 rounded-xl px-2 py-2 text-left transition-[background-color,transform] duration-150 ease-[var(--ease-out)] active:scale-[0.98] active:bg-[var(--track)]"
             >
-              <span className="min-w-0 flex-1 text-[15px] leading-snug">{f.name}</span>
+              <span className="min-w-0 flex-1 text-[15px] leading-snug">
+                {f.name}
+                {f.origin === 'usuario' && (
+                  <span className="ml-1.5 rounded-full bg-[var(--accent)]/12 px-1.5 py-0.5 align-middle text-[11px] font-medium text-[var(--accent-text)]">meu</span>
+                )}
+              </span>
               <span className="shrink-0 text-[13px] tabular-nums text-[var(--muted)]">{kcalText(f.kcal100)} kcal/100 g</span>
             </button>
           </li>
@@ -324,6 +329,7 @@ export function AddFoodSheet({ open, onClose }: { open: boolean; onClose: () => 
           />
           <MeasurePicker
             foodName={step.food.name}
+            portion={step.food.portion}
             grams={grams}
             onGrams={(g) => {
               setGrams(String(g))

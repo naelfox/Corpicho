@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { Minus, Plus } from 'lucide-react'
-import { measuresFor } from '@/lib/measures'
+import { measuresFor, type Measure } from '@/lib/measures'
 
 /** 0,5 → "½", 1,5 → "1½", 2 → "2". */
 export const countText = (c: number) => {
@@ -19,8 +19,19 @@ const MAX = 20
  * preenche o peso em gramas; tocar de novo, ou no +, soma mais uma; o − tira meia.
  * Digitar o peso à mão desfaz a seleção (o campo de gramas é sempre a fonte da verdade).
  */
-export function MeasurePicker({ foodName, grams, onGrams }: { foodName: string; grams: string; onGrams: (g: number) => void }) {
-  const measures = useMemo(() => measuresFor(foodName), [foodName])
+export function MeasurePicker({
+  foodName,
+  grams,
+  onGrams,
+  portion,
+}: {
+  foodName: string
+  grams: string
+  onGrams: (g: number) => void
+  /** Porção salva do rótulo: vem primeiro. */
+  portion?: Measure | null
+}) {
+  const measures = useMemo(() => [...(portion ? [portion] : []), ...measuresFor(foodName)], [foodName, portion])
   const [sel, setSel] = useState<{ i: number; count: number } | null>(null)
   if (measures.length === 0) return null
 
@@ -41,7 +52,7 @@ export function MeasurePicker({ foodName, grams, onGrams }: { foodName: string; 
           const on = active?.i === i
           return (
             <button
-              key={m.label}
+              key={`${i}-${m.label}`}
               type="button"
               aria-pressed={on}
               onClick={() => choose(i, on ? active.count + 1 : 1)}
