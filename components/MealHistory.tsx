@@ -120,7 +120,7 @@ export function MealCard({
           }`}
         >
           {MEAL_LABEL[meal.type]}
-          <Pencil aria-hidden size={13} className="opacity-60" />
+          <ChevronDown aria-hidden size={15} className={`opacity-60 transition-transform duration-200 motion-reduce:transition-none ${typeOpen ? 'rotate-180' : ''}`} />
         </button>
         <button
           type="button"
@@ -142,6 +142,14 @@ export function MealCard({
               className={`text-[var(--muted)] transition-transform duration-200 ease-[var(--ease-out)] motion-reduce:transition-none ${open ? 'rotate-180' : ''}`}
             />
           </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onEdit(meal)}
+          aria-label={`Editar ${MEAL_LABEL[meal.type]}`}
+          className="-mr-1.5 grid size-10 shrink-0 place-items-center rounded-full text-[var(--accent-text)] transition-[background-color,transform] duration-150 ease-[var(--ease-out)] active:scale-[0.92] active:bg-[var(--accent-soft)]"
+        >
+          <Pencil aria-hidden size={18} />
         </button>
       </div>
 

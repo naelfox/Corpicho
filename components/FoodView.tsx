@@ -34,6 +34,7 @@ export function FoodView() {
   const [view, setView] = useState<'dia' | 'historico'>('dia')
   const [day, setDay] = useState<Day>(() => todayIn())
   const [data, setData] = useState<DayData | null>(null)
+  const [loadedDay, setLoadedDay] = useState<Day | null>(null)
   const [yesterday, setYesterday] = useState<MealWithItems[]>([])
   const [addOpen, setAddOpen] = useState(false)
   const [addKey, setAddKey] = useState(0)
@@ -57,6 +58,7 @@ export function FoodView() {
       const isToday = day === todayIn()
       const [d, y] = await Promise.all([loadDay(day), isToday ? loadDay(addDays(day, -1)) : null])
       setData(d)
+      setLoadedDay(day)
       setYesterday(y?.meals ?? [])
     } catch (e) {
       console.error(e)
@@ -289,12 +291,18 @@ export function FoodView() {
             </div>
           )}
 
-          {data && meals.length === 0 && (
+          {loadedDay !== day && (
+            <div role="status" className="grid min-h-32 place-items-center">
+              <span aria-hidden className="size-6 animate-spin rounded-full border-[3px] border-[var(--accent-soft)] border-t-[var(--accent)]" />
+              <span className="sr-only">Carregando refeições…</span>
+            </div>
+          )}
+          {loadedDay === day && meals.length === 0 && (
             <p className="py-10 text-center text-[15px] text-[var(--muted)]">
               {isToday ? 'Nada registrado hoje ainda.' : 'Nada registrado neste dia.'}
             </p>
           )}
-          {meals.map((m) => (
+          {loadedDay === day && meals.map((m) => (
             <MealCard key={m.id} meal={m} onRepeat={openRepeat} onEdit={editMeal} itemDelete />
           ))}
         </>
