@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Camera, Pencil, RotateCcw, Trash2, X } from 'lucide-react'
+import { Camera, ChevronDown, Pencil, RotateCcw, Trash2, X } from 'lucide-react'
 import {
   HISTORY_PAGE, deleteMealApi, deleteMealItemApi, loadHistory, loadPhoto, repeatMealApi, subscribe,
   type MealType, type MealWithItems,
@@ -50,7 +50,8 @@ function MealPhoto({ path }: { path: string }) {
 }
 
 /**
- * Uma refeição: tipo, hora, total, itens. Ações: repetir, editar e apagar (com confirmação no app).
+ * Uma refeição: fechada mostra tipo, hora, total e os nomes dos itens; aberta, as macros (barra) da refeição e
+ * de cada item e as ações: repetir, editar e apagar (com confirmação no app).
  * `itemDelete` liga o "x" em cada item (apagar o último item apaga a refeição).
  */
 export function MealCard({
@@ -65,6 +66,7 @@ export function MealCard({
   itemDelete?: boolean
 }) {
   const [confirm, setConfirm] = useState<'meal' | string | null>(null)
+  const [open, setOpen] = useState(false)
 
   const removeMeal = async () => {
     setConfirm(null)
@@ -89,76 +91,150 @@ export function MealCard({
     }
   }
 
+  const detailsId = `meal-${meal.id}`
+
   return (
     <article className={card} aria-label={MEAL_LABEL[meal.type]}>
-      <header className="mb-2 flex items-baseline justify-between gap-2">
-        <h3 className="flex items-center gap-1.5 text-[16px] font-semibold">
-          {MEAL_LABEL[meal.type]}
-          {meal.photoPath && <Camera aria-label="registrada pela foto" size={14} className="text-[var(--muted)]" />}
-          <span className="text-[13px] font-normal text-[var(--muted)]">{timeFmt.format(new Date(meal.createdAt))}</span>
-        </h3>
-        <span className="shrink-0 text-[15px] font-semibold tabular-nums">{kcalText(meal.totals.kcal)} kcal</span>
-      </header>
-      {meal.photoPath && <MealPhoto path={meal.photoPath} />}
-      <ul className="flex flex-col">
-        {meal.items.map((it) =>
-          confirm === it.id ? (
-            <li key={it.id} className="py-1">
-              <ConfirmRow text={`Apagar ${it.name}?`} onCancel={() => setConfirm(null)} onConfirm={() => void removeItem(it.id)} />
-            </li>
-          ) : (
-            <li key={it.id} className="flex min-h-10 items-center gap-2 text-[14px]">
-              <span className="min-w-0 flex-1 leading-snug">{it.name}</span>
-              <span className="shrink-0 tabular-nums text-[var(--muted)]">
-                {g1(it.grams)} g · {kcalText(it.kcal)} kcal
-              </span>
-              {itemDelete && (
+      {/* Fechado: o essencial (o quê e quanto). Tocar abre o detalhe com as macros de cada item. */}
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={detailsId}
+        onClick={() => setOpen((o) => !o)}
+        className="-m-2 flex w-[calc(100%+1rem)] flex-col rounded-xl p-2 text-left transition-[background-color,transform] duration-150 ease-[var(--ease-out)] active:scale-[0.99] active:bg-[var(--track)]"
+      >
+        <span className="flex w-full items-baseline justify-between gap-2">
+          <span className="flex items-center gap-1.5 text-[16px] font-semibold">
+            {MEAL_LABEL[meal.type]}
+            {meal.photoPath && <Camera aria-label="registrada pela foto" size={14} className="text-[var(--muted)]" />}
+            <span className="text-[13px] font-normal text-[var(--muted)]">{timeFmt.format(new Date(meal.createdAt))}</span>
+          </span>
+          <span className="flex shrink-0 items-center gap-1 text-[15px] font-semibold tabular-nums">
+            {kcalText(meal.totals.kcal)} kcal
+            <ChevronDown
+              aria-hidden
+              size={18}
+              className={`text-[var(--muted)] transition-transform duration-200 ease-[var(--ease-out)] motion-reduce:transition-none ${open ? 'rotate-180' : ''}`}
+            />
+          </span>
+        </span>
+        <span className="mt-0.5 line-clamp-2 text-[14px] leading-snug text-[var(--muted)]">
+          {meal.items.map((it) => it.name).join(', ')}
+        </span>
+      </button>
+
+      <div
+        id={detailsId}
+        className={`grid transition-[grid-template-rows,opacity] duration-250 ease-[var(--ease-out)] motion-reduce:transition-none ${
+          open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+        }`}
+        inert={!open}
+      >
+        <div className="overflow-hidden">
+          <div className="pt-4">
+            {meal.photoPath && open && <MealPhoto path={meal.photoPath} />}
+            <MacroSplit m={meal.totals} legend />
+            <ul className="mt-4 flex flex-col gap-3">
+              {meal.items.map((it) =>
+                confirm === it.id ? (
+                  <li key={it.id}>
+                    <ConfirmRow text={`Apagar ${it.name}?`} onCancel={() => setConfirm(null)} onConfirm={() => void removeItem(it.id)} />
+                  </li>
+                ) : (
+                  <li key={it.id} className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2 text-[14px]">
+                        <span className="min-w-0 leading-snug">{it.name}</span>
+                        <span className="shrink-0 tabular-nums text-[var(--muted)]">
+                          {g1(it.grams)} g · <span className="font-medium text-[var(--ink)]">{kcalText(it.kcal)} kcal</span>
+                        </span>
+                      </div>
+                      <MacroSplit m={it} className="mt-1.5" />
+                    </div>
+                    {itemDelete && (
+                      <button
+                        type="button"
+                        aria-label={`Apagar ${it.name}`}
+                        onClick={() => setConfirm(it.id)}
+                        className="-mt-2 -mr-2 grid size-10 shrink-0 place-items-center rounded-lg text-[var(--muted)] active:scale-[0.92]"
+                      >
+                        <X aria-hidden size={16} />
+                      </button>
+                    )}
+                  </li>
+                ),
+              )}
+            </ul>
+            {confirm === 'meal' ? (
+              <div className="mt-3">
+                <ConfirmRow text="Apagar esta refeição?" onCancel={() => setConfirm(null)} onConfirm={() => void removeMeal()} />
+              </div>
+            ) : (
+              <div className="mt-3 -mb-1 flex gap-1 border-t border-[var(--line)] pt-2">
                 <button
                   type="button"
-                  aria-label={`Apagar ${it.name}`}
-                  onClick={() => setConfirm(it.id)}
-                  className="-mr-2 grid size-10 shrink-0 place-items-center rounded-lg text-[var(--muted)] active:scale-[0.92]"
+                  onClick={() => onRepeat(meal)}
+                  className="flex h-10 items-center gap-1.5 rounded-lg px-2 text-[14px] font-medium text-[var(--accent-text)] active:scale-[0.96]"
                 >
-                  <X aria-hidden size={16} />
+                  <RotateCcw aria-hidden size={16} /> Repetir
                 </button>
-              )}
-            </li>
-          ),
-        )}
-      </ul>
-      <p className="mt-1 text-[12px] tabular-nums text-[var(--muted)]">
-        P {g1(meal.totals.protein)} · C {g1(meal.totals.carbs)} · G {g1(meal.totals.fat)} g
-      </p>
-      {confirm === 'meal' ? (
-        <div className="mt-3">
-          <ConfirmRow text="Apagar esta refeição?" onCancel={() => setConfirm(null)} onConfirm={() => void removeMeal()} />
+                <button
+                  type="button"
+                  onClick={() => onEdit(meal)}
+                  className="flex h-10 items-center gap-1.5 rounded-lg px-2 text-[14px] font-medium text-[var(--accent-text)] active:scale-[0.96]"
+                >
+                  <Pencil aria-hidden size={16} /> Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirm('meal')}
+                  className="ml-auto flex h-10 items-center gap-1.5 rounded-lg px-2 text-[14px] text-[var(--muted)] active:scale-[0.96]"
+                >
+                  <Trash2 aria-hidden size={16} /> Apagar
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      ) : (
-        <div className="mt-2 -mb-1 flex gap-1">
-          <button
-            type="button"
-            onClick={() => onRepeat(meal)}
-            className="flex h-10 items-center gap-1.5 rounded-lg px-2 text-[14px] font-medium text-[var(--accent-text)] active:scale-[0.96]"
-          >
-            <RotateCcw aria-hidden size={16} /> Repetir
-          </button>
-          <button
-            type="button"
-            onClick={() => onEdit(meal)}
-            className="flex h-10 items-center gap-1.5 rounded-lg px-2 text-[14px] font-medium text-[var(--accent-text)] active:scale-[0.96]"
-          >
-            <Pencil aria-hidden size={16} /> Editar
-          </button>
-          <button
-            type="button"
-            onClick={() => setConfirm('meal')}
-            className="flex h-10 items-center gap-1.5 rounded-lg px-2 text-[14px] text-[var(--muted)] active:scale-[0.96]"
-          >
-            <Trash2 aria-hidden size={16} /> Apagar
-          </button>
-        </div>
-      )}
+      </div>
     </article>
+  )
+}
+
+const MACROS = [
+  { key: 'protein', label: 'Proteína', short: 'P', color: 'var(--protein)', kcalPerG: 4 },
+  { key: 'carbs', label: 'Carboidrato', short: 'C', color: 'var(--carbs)', kcalPerG: 4 },
+  { key: 'fat', label: 'Gordura', short: 'G', color: 'var(--fat)', kcalPerG: 9 },
+] as const
+
+/**
+ * De onde vêm as calorias: uma barra dividida pela parte de cada macro (proteína e carboidrato 4 kcal/g,
+ * gordura 9 kcal/g) e os gramas embaixo. `legend` mostra os nomes completos (uso no total da refeição).
+ */
+function MacroSplit({ m, legend = false, className = '' }: { m: { protein: number; carbs: number; fat: number }; legend?: boolean; className?: string }) {
+  const parts = MACROS.map((x) => ({ ...x, g: m[x.key], kcal: m[x.key] * x.kcalPerG }))
+  const total = parts.reduce((a, p) => a + p.kcal, 0)
+  return (
+    <div className={className}>
+      <div
+        role="img"
+        aria-label={parts.map((p) => `${p.label} ${g1(p.g)} g`).join(', ')}
+        className={`flex gap-0.5 overflow-hidden rounded-full bg-[var(--track)] ${legend ? 'h-2.5' : 'h-1.5'}`}
+      >
+        {total > 0 &&
+          parts.map((p) =>
+            p.kcal > 0 ? <div key={p.key} className="h-full" style={{ width: `${(p.kcal / total) * 100}%`, background: p.color }} /> : null,
+          )}
+      </div>
+      <p aria-hidden className={`mt-1.5 flex gap-3 tabular-nums text-[var(--muted)] ${legend ? 'text-[13px]' : 'text-[12px]'}`}>
+        {parts.map((p) => (
+          <span key={p.key} className="flex items-center gap-1">
+            <span className="size-2 rounded-full" style={{ background: p.color }} />
+            {legend ? p.label : p.short} <span className="font-medium text-[var(--ink)]">{g1(p.g)} g</span>
+          </span>
+        ))}
+      </p>
+    </div>
   )
 }
 
