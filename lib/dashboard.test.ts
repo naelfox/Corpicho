@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { createTestDb } from '@/test/db'
 import { ValidationError } from '@/lib/validate'
-import { saveGoal } from '@/lib/profile'
+import { saveGoal, saveProfile } from '@/lib/profile'
+import { addBurn } from '@/lib/burns'
 import { addWeight } from '@/lib/body'
 import { addMeal } from '@/lib/meals'
 import { getDashboard } from '@/lib/dashboard'
@@ -69,5 +70,24 @@ describe('dashboard', () => {
     const d = await getDashboard(db, now)
     expect(d.weightSeries).toHaveLength(2)
     expect(d.summary).toEqual([{ metric: 'peso', delta: -1, unit: 'kg' }])
+  })
+
+  it('consumido × gasto: basal × 1,2 + anotado; dia sem refeição = null', async () => {
+    const db = await createTestDb()
+    await saveGoal(db, goal)
+    expect((await getDashboard(db, now)).energy.base).toBeNull()
+    await saveProfile(db, {
+      birthDate: '1996-11-22', sex: 'm', heightCm: 180, activityLevel: 1.55, fitness: 'medio',
+      experience: 'iniciante', daysPerWeek: 3, minutesPerSession: 60, equipment: [], restrictions: '',
+    })
+    await addWeight(db, 90, new Date('2026-11-20T12:00:00Z'))
+    await addBurn(db, { day: '2026-11-22', kcal: 300 })
+    await addMeal(db, { type: 'almoco', source: 'manual', now, items: [{ name: 'X', grams: 300, per100: { kcal100: 600, protein100: 0, carbs100: 0, fat100: 0 } }] })
+    const { energy } = await getDashboard(db, now)
+    // 10·90 + 6,25·180 − 5·30 + 5 = 1880 → ×1,2 = 2256
+    expect(energy.base).toBe(2256)
+    expect(energy.days).toHaveLength(14)
+    expect(energy.days[13]).toEqual({ day: '2026-11-22', eaten: 1800, spent: 2556 })
+    expect(energy.days[12]).toEqual({ day: '2026-11-21', eaten: null, spent: 2256 })
   })
 })

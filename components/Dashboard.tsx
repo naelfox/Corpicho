@@ -7,6 +7,7 @@ import { ValidationError } from '@/lib/validate'
 import type { Metric } from '@/lib/series'
 import { BurnCard } from './BurnView'
 import { CalorieRing } from './CalorieRing'
+import { EnergyChart } from './EnergyChart'
 import { LineChart } from './LineChart'
 import { MacroBars } from './MacroBars'
 import { btnPrimary } from './Sheet'
@@ -74,6 +75,10 @@ export function Dashboard() {
 
       <section className={card} aria-label="Macros de hoje">
         <MacroBars consumed={today} target={targets} />
+      </section>
+
+      <section className={card} aria-label="Consumido e gasto">
+        <EnergyChart energy={data.energy} />
       </section>
 
       <section className={card} aria-label="Peso">

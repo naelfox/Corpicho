@@ -25,6 +25,9 @@
   --src-measured: #16a36a;
   --src-calculated: #3f7fe0;
   --src-estimated: #b7791f;
+  /* Consumido × gasto (paleta categórica validada p/ daltonismo, claro e escuro) */
+  --eaten: #2a78d6;
+  --spent: #eb6834;
 
   /* Silhueta do corpo (aba Corpo) */
   --figure: #e4eae2;
@@ -62,6 +65,8 @@
     --src-measured: #3fd08f;
     --src-calculated: #7aa8ff;
     --src-estimated: #e6b25c;
+    --eaten: #3987e5;
+    --spent: #d95926;
 
     --figure: #262e28;
     --figure-region: #344037;
@@ -93,6 +98,8 @@
   --src-measured: #3fd08f;
   --src-calculated: #7aa8ff;
   --src-estimated: #e6b25c;
+  --eaten: #3987e5;
+  --spent: #d95926;
 
   --figure: #262e28;
   --figure-region: #344037;
