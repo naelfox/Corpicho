@@ -15,7 +15,7 @@ import { analyzeMealText, analyzePlate, type PlateItem } from './ai/plate'
 import { createFood, deleteMyFood, listMyFoods, searchFoods, type Food } from './foods'
 import { analyzeLabel, type LabelRead } from './ai/label'
 import {
-  addMeal, deleteMeal, deleteMealItem, getDayMeals, getHistory, repeatMeal, updateMeal,
+  addMeal, deleteMeal, deleteMealItem, getDayMeals, getHistory, repeatMeal, setMealType, updateMeal,
   type EditItem, type MealType, type MealWithItems, type NewItem,
 } from './meals'
 import { sumMacros, type Macros } from './nutrition'
@@ -197,6 +197,10 @@ export async function deleteMealItemApi(id: string): Promise<void> {
 }
 
 /** Edita uma refeição salva (tipo e itens). */
+export async function setMealTypeApi(id: string, type: MealType): Promise<void> {
+  await write((db) => setMealType(db, id, type))
+}
+
 export async function updateMealApi(id: string, input: { type: MealType; items: EditItem[] }): Promise<void> {
   await write((db) => updateMeal(db, id, input))
 }

@@ -3,7 +3,7 @@ import { createTestDb } from '@/test/db'
 import { ValidationError } from '@/lib/validate'
 import { createFood } from '@/lib/foods'
 import {
-  addMeal, dailyTotals, deleteMeal, deleteMealItem, getDayMeals, getDayTotals, getHistory, repeatMeal, updateMeal, MEAL_LABEL, mealTypeAt,
+  addMeal, dailyTotals, deleteMeal, deleteMealItem, getDayMeals, getDayTotals, getHistory, repeatMeal, setMealType, updateMeal, MEAL_LABEL, mealTypeAt,
 } from '@/lib/meals'
 
 const arroz = { kcal100: 128, protein100: 2.5, carbs100: 26.2, fat100: 0.2 }
@@ -39,6 +39,15 @@ describe('refeições', () => {
     expect(m.totals.kcal).toBe(192)
     const foods = await db.query<{ origin: string }>(`select origin from foods where name = 'Arroz'`)
     expect(foods).toEqual([{ origin: 'usuario' }])
+  })
+
+  it('setMealType troca só o tipo', async () => {
+    const db = await createTestDb()
+    const id = await addMeal(db, { type: 'jantar', source: 'manual', now, items: [{ name: 'Arroz', grams: 150, per100: arroz }] })
+    await setMealType(db, id, 'almoco')
+    const [m] = await getDayMeals(db, '2026-11-22')
+    expect(m).toMatchObject({ type: 'almoco', totals: { kcal: 192 } })
+    await expect(setMealType(db, id, 'ceia' as never)).rejects.toThrow(ValidationError)
   })
 
   it('item com foodId usa o alimento existente e item com macros fica sem food_id', async () => {

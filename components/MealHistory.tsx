@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Camera, ChevronDown, Pencil, RotateCcw, Trash2, X } from 'lucide-react'
 import {
-  HISTORY_PAGE, deleteMealApi, deleteMealItemApi, loadHistory, loadPhoto, repeatMealApi, subscribe,
+  HISTORY_PAGE, deleteMealApi, deleteMealItemApi, loadHistory, loadPhoto, repeatMealApi, setMealTypeApi, subscribe,
   type MealType, type MealWithItems,
 } from '@/lib/api'
 import { TZ, addDays, todayIn, type Day } from '@/lib/dates'
@@ -67,6 +67,19 @@ export function MealCard({
 }) {
   const [confirm, setConfirm] = useState<'meal' | string | null>(null)
   const [open, setOpen] = useState(false)
+  const [typeOpen, setTypeOpen] = useState(false)
+
+  const changeType = async (t: MealType) => {
+    setTypeOpen(false)
+    if (t === meal.type) return
+    try {
+      await setMealTypeApi(meal.id, t)
+      toast(`Agora é ${MEAL_LABEL[t]}.`)
+    } catch (e) {
+      console.error(e)
+      toast('Não deu para trocar o tipo.', 'erro')
+    }
+  }
 
   const removeMeal = async () => {
     setConfirm(null)
@@ -95,19 +108,31 @@ export function MealCard({
 
   return (
     <article className={card} aria-label={MEAL_LABEL[meal.type]}>
-      {/* Fechado: o essencial (o quê e quanto). Tocar abre o detalhe com as macros de cada item. */}
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls={detailsId}
-        onClick={() => setOpen((o) => !o)}
-        className="-m-2 flex w-[calc(100%+1rem)] flex-col rounded-xl p-2 text-left transition-[background-color,transform] duration-150 ease-[var(--ease-out)] active:scale-[0.99] active:bg-[var(--track)]"
-      >
-        <span className="flex w-full items-baseline justify-between gap-2">
-          <span className="flex items-center gap-1.5 text-[16px] font-semibold">
-            {MEAL_LABEL[meal.type]}
-            {meal.photoPath && <Camera aria-label="registrada pela foto" size={14} className="text-[var(--muted)]" />}
-            <span className="text-[13px] font-normal text-[var(--muted)]">{timeFmt.format(new Date(meal.createdAt))}</span>
+      {/* Fechado: o essencial (o quê e quanto). O título troca o tipo na hora; o resto abre o detalhe. */}
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          aria-expanded={typeOpen}
+          aria-label={`${MEAL_LABEL[meal.type]}: trocar o tipo da refeição`}
+          onClick={() => setTypeOpen((o) => !o)}
+          className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-[16px] font-semibold transition-[background-color,transform] duration-150 ease-[var(--ease-out)] active:scale-[0.96] ${
+            typeOpen ? 'bg-[var(--accent)] text-[var(--accent-ink)]' : 'bg-[var(--accent-soft)] text-[var(--ink)]'
+          }`}
+        >
+          {MEAL_LABEL[meal.type]}
+          <Pencil aria-hidden size={13} className="opacity-60" />
+        </button>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={detailsId}
+          aria-label={`${open ? 'Fechar' : 'Ver'} detalhes: ${kcalText(meal.totals.kcal)} kcal`}
+          onClick={() => setOpen((o) => !o)}
+          className="flex h-9 min-w-0 flex-1 items-center justify-between gap-2 rounded-lg text-left active:opacity-70"
+        >
+          <span className="flex items-center gap-1.5 text-[13px] text-[var(--muted)]">
+            {timeFmt.format(new Date(meal.createdAt))}
+            {meal.photoPath && <Camera aria-label="registrada pela foto" size={14} />}
           </span>
           <span className="flex shrink-0 items-center gap-1 text-[15px] font-semibold tabular-nums">
             {kcalText(meal.totals.kcal)} kcal
@@ -117,10 +142,24 @@ export function MealCard({
               className={`text-[var(--muted)] transition-transform duration-200 ease-[var(--ease-out)] motion-reduce:transition-none ${open ? 'rotate-180' : ''}`}
             />
           </span>
-        </span>
-        <span className="mt-0.5 line-clamp-2 text-[14px] leading-snug text-[var(--muted)]">
-          {meal.items.map((it) => it.name).join(' · ')}
-        </span>
+        </button>
+      </div>
+
+      {typeOpen && (
+        <div className="anim-enter-up mt-3 rounded-xl bg-[var(--bg)] p-3">
+          <p className="mb-2 text-[13px] font-medium text-[var(--muted)]">Qual refeição foi esta?</p>
+          <MealTypePicker value={meal.type} onChange={(t) => void changeType(t)} />
+        </div>
+      )}
+
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-hidden
+        onClick={() => setOpen((o) => !o)}
+        className="mt-1.5 line-clamp-2 w-full text-left text-[14px] leading-snug text-[var(--muted)]"
+      >
+        {meal.items.map((it) => it.name).join(' · ')}
       </button>
 
       <div

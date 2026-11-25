@@ -185,6 +185,12 @@ export async function getDayTotals(db: Db, day: Day): Promise<Macros> {
   return sumMacros((await getDayMeals(db, day)).map((m) => m.totals))
 }
 
+/** Só troca o tipo (café, almoço…), sem mexer nos itens. */
+export async function setMealType(db: Db, id: string, type: MealType): Promise<void> {
+  if (!MEAL_TYPES.includes(type)) throw new ValidationError('Refeição: tipo inválido.')
+  await db.query(`update meals set type = $2 where id = $1`, [id, type])
+}
+
 export async function deleteMeal(db: Db, id: string): Promise<void> {
   await db.query(`delete from meals where id = $1`, [id])
 }
