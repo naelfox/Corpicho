@@ -119,7 +119,7 @@ export function MealCard({
           </span>
         </span>
         <span className="mt-0.5 line-clamp-2 text-[14px] leading-snug text-[var(--muted)]">
-          {meal.items.map((it) => it.name).join(', ')}
+          {meal.items.map((it) => it.name).join(' · ')}
         </span>
       </button>
 

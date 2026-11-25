@@ -234,6 +234,12 @@ export function MealReview({ input, onDone, onCancel }: { input: ReviewInput; on
             </p>
           </div>
 
+          {/* Logo no topo: o tipo vem do horário e costuma ser a primeira coisa a corrigir. */}
+          <section className={card} aria-label="Tipo da refeição">
+            <span className={fieldLabel}>Qual refeição?</span>
+            <MealTypePicker value={type} onChange={setType} />
+          </section>
+
           {rows.length === 0 && note && (
             <p role="status" className="rounded-2xl bg-[var(--track)] px-4 py-3 text-[14px] leading-snug">
               {note} <span className="text-[var(--muted)]">Adicione os itens à mão.</span>
@@ -310,10 +316,6 @@ export function MealReview({ input, onDone, onCancel }: { input: ReviewInput; on
           <section className={card} aria-label="Total da refeição">
             <p className="text-[13px] text-[var(--muted)]">Total</p>
             <MacroLine m={total} className="mt-0.5 text-[15px]" />
-            <div className="mt-4">
-              <span className={fieldLabel}>Refeição</span>
-              <MealTypePicker value={type} onChange={setType} />
-            </div>
           </section>
 
           <div className="flex gap-2">
